@@ -1,27 +1,56 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import MigrateButton from '@/components/admin/MigrateButton'   // ← pastikan ada
-import ThemeToggle from '@/components/admin/ThemeToggle'       // ← pastikan ada
+import MigrateButton from '@/components/admin/MigrateButton'
+import ThemeToggle from '@/components/admin/ThemeToggle'
 
 export default function ConfigPage() {
-  const [token,setToken]=useState(''); const [limit,setLimit]=useState(''); const [apiKey,setApiKey]=useState('');
-  const [newPwd,setNewPwd]=useState(''); const [mEnabled,setMEnabled]=useState(false);
-  const [mTitle,setMTitle]=useState(''); const [mDesc,setMDesc]=useState(''); const [loading,setLoading]=useState<string|null>(null)
+  const [token,setToken]=useState('')
+  const [limit,setLimit]=useState('')
+  const [apiKey,setApiKey]=useState('')
+  const [newPwd,setNewPwd]=useState('')
+  const [mEnabled,setMEnabled]=useState(false)
+  const [mTitle,setMTitle]=useState('')
+  const [mDesc,setMDesc]=useState('')
+  const [loading,setLoading]=useState<string|null>(null)
 
   useEffect(()=>{
-    const t=document.cookie.split(';').find(c=>c.includes('nl_admin_token'))?.split('=')[1]??''
+    const t=document.cookie.split(';').find(c=>c.includes('nl_admin_token'))?.split('=')[1]?.trim()??''
     setToken(t)
-    fetch('/api/admin?action=stats',{headers:{Authorization:`Bearer ${t}`}}).then(r=>r.json()).then(d=>setLimit(String(d.globalDailyLimit??5)))
-    fetch('/api/admin?action=maintenance-status').then(r=>r.json()).then(d=>{setMEnabled(d.enabled);setMTitle(d.title);setMDesc(d.description)})
+    // GET dashboard stats (action=dashboard)
+    fetch('/api/admin?action=dashboard',{headers:{Authorization:`Bearer ${t}`}})
+      .then(r=>r.json())
+      .then(d=>setLimit(String(d.stats?.dailyLimit??5)))
+      .catch(()=>{})
+    // GET config (action=config) — termasuk maintenance
+    fetch('/api/admin?action=config',{headers:{Authorization:`Bearer ${t}`}})
+      .then(r=>r.json())
+      .then(d=>{
+        if(d.maintenance){
+          setMEnabled(d.maintenance.enabled??false)
+          setMTitle(d.maintenance.title??'')
+          setMDesc(d.maintenance.description??'')
+        }
+        if(d.dailyLimit!==undefined) setLimit(String(d.dailyLimit))
+      })
+      .catch(()=>{})
   },[])
 
   async function save(action:string,body:Record<string,unknown>,label:string){
     setLoading(action)
-    const r=await fetch(`/api/admin?action=${action}`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(body)})
-    const d=await r.json()
-    r.ok?toast.success(`${label} berhasil disimpan`):toast.error(d.error)
-    setLoading(null)
+    try {
+      const r=await fetch(`/api/admin?action=${action}`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+        body:JSON.stringify(body)
+      })
+      const d=await r.json()
+      r.ok?toast.success(`${label} berhasil disimpan`):toast.error(d.error??'Terjadi kesalahan')
+    } catch(e) {
+      toast.error('Gagal menghubungi server')
+    } finally {
+      setLoading(null)
+    }
   }
 
   const Section=({title,children}:{title:string;children:React.ReactNode})=>(
@@ -37,36 +66,40 @@ export default function ConfigPage() {
         <h1 className="text-2xl font-bold">Pengaturan</h1>
         <ThemeToggle />
       </div>
+
       <Section title="Batas Analisa Harian">
         <div className="flex gap-2">
           <input type="number" value={limit} onChange={e=>setLimit(e.target.value)} min={1} max={9999}
             className="border rounded-xl px-3 py-2 text-sm bg-background flex-1 focus:outline-none focus:ring-2 focus:ring-ring"/>
-          <button onClick={()=>save('set-limit',{dailyLimit:parseInt(limit)},'Limit')} disabled={loading==='set-limit'}
+          <button onClick={()=>save('update_config',{dailyLimit:parseInt(limit)},'Limit')} disabled={loading==='update_config'}
             className="bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50">
-            {loading==='set-limit'?'…':'Simpan'}
+            {loading==='update_config'?'…':'Simpan'}
           </button>
         </div>
       </Section>
+
       <Section title="Anthropic API Key">
         <div className="flex gap-2">
           <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-..."
             className="border rounded-xl px-3 py-2 text-sm bg-background flex-1 focus:outline-none focus:ring-2 focus:ring-ring"/>
-          <button onClick={()=>save('set-apikey',{apiKey},'API Key')} disabled={loading==='set-apikey'}
+          <button onClick={()=>save('update_config',{anthropicApiKey:apiKey},'API Key')} disabled={loading==='update_config_key'}
             className="bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50">
-            {loading==='set-apikey'?'…':'Simpan'}
+            {loading==='update_config_key'?'…':'Simpan'}
           </button>
         </div>
       </Section>
+
       <Section title="Password Admin">
         <div className="flex gap-2">
           <input type="password" value={newPwd} onChange={e=>setNewPwd(e.target.value)} placeholder="Min. 8 karakter"
             className="border rounded-xl px-3 py-2 text-sm bg-background flex-1 focus:outline-none focus:ring-2 focus:ring-ring"/>
-          <button onClick={()=>save('change-pwd',{newPassword:newPwd},'Password')} disabled={loading==='change-pwd'||newPwd.length<8}
+          <button onClick={()=>save('update_password',{newPassword:newPwd},'Password')} disabled={loading==='update_password'||newPwd.length<8}
             className="bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50">
-            {loading==='change-pwd'?'…':'Ubah'}
+            {loading==='update_password'?'…':'Ubah'}
           </button>
         </div>
       </Section>
+
       <Section title="Mode Maintenance">
         <div className="space-y-3">
           <button type="button" onClick={()=>setMEnabled(!mEnabled)} role="switch" aria-checked={mEnabled}
@@ -80,13 +113,15 @@ export default function ConfigPage() {
             className="w-full border rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"/>
           <textarea value={mDesc} onChange={e=>setMDesc(e.target.value)} placeholder="Deskripsi" rows={2}
             className="w-full border rounded-xl px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"/>
-          <button onClick={()=>save('set-maintenance',{enabled:mEnabled,title:mTitle,description:mDesc},'Maintenance')} disabled={loading==='set-maintenance'}
+          <button onClick={()=>save('update_maintenance',{enabled:mEnabled,title:mTitle,description:mDesc},'Maintenance')} disabled={loading==='update_maintenance'}
             className="bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50">
-            {loading==='set-maintenance'?'…':'Simpan Maintenance'}
+            {loading==='update_maintenance'?'…':'Simpan Maintenance'}
           </button>
         </div>
       </Section>
+
       <Section title="Migrasi Data dari Supabase KV Store">
+        <p className="text-sm text-muted-foreground mb-3">Pindahkan data lama dari <strong>Supabase KV Store</strong> ke PostgreSQL. Jalankan <strong>sekali</strong> setelah deploy pertama.</p>
         <MigrateButton token={token}/>
       </Section>
     </div>
