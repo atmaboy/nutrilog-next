@@ -7,9 +7,20 @@ const secret = new TextEncoder().encode(
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
-  if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
+
+  // Izinkan /admin/login tanpa token
+  if (pathname === '/admin/login') {
+    return NextResponse.next()
+  }
+
+  // Proteksi semua /admin/* selain login
+  if (pathname.startsWith('/admin')) {
     const token = req.cookies.get('nl_admin_token')?.value
-    if (!token) return NextResponse.redirect(new URL('/admin/login', req.url))
+
+    if (!token) {
+      return NextResponse.redirect(new URL('/admin/login', req.url))
+    }
+
     try {
       const { payload } = await jwtVerify(token, secret)
       if (payload.role !== 'admin') throw new Error('not admin')
@@ -19,7 +30,10 @@ export async function middleware(req: NextRequest) {
       return res
     }
   }
+
   return NextResponse.next()
 }
 
-export const config = { matcher: ['/admin/:path*'] }
+export const config = {
+  matcher: ['/admin/:path*'],
+}
