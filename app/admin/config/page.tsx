@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import MigrateButton from '@/components/admin/MigrateButton'
-import ThemeToggle from '@/components/admin/ThemeToggle'
+import MigrateButton from '@/components/admin/MigrateButton'   // ← pastikan ada
+import ThemeToggle from '@/components/admin/ThemeToggle'       // ← pastikan ada
 
 export default function ConfigPage() {
   const [token,setToken]=useState(''); const [limit,setLimit]=useState(''); const [apiKey,setApiKey]=useState('');
