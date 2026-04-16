@@ -1,0 +1,66 @@
+import { NextRequest } from 'next/server'
+import { db } from '@/lib/db'
+import { users } from '@/drizzle/schema'
+import { hashPassword, signUserToken, verifyToken, extractToken } from '@/lib/auth'
+import { ok, err, setCors } from '@/lib/utils'
+import { eq } from 'drizzle-orm'
+
+export async function OPTIONS() {
+  const h = new Headers(); setCors(h)
+  return new Response(null, { status: 204, headers: h })
+}
+
+export async function POST(req: NextRequest) {
+  const action = req.nextUrl.searchParams.get('action')
+
+  // REGISTER
+  if (action === 'register') {
+    const { username, password } = await req.json()
+    if (!username || !password) return err('Username dan password diperlukan')
+    if (username.length < 3) return err('Username minimal 3 karakter')
+    if (password.length < 6) return err('Password minimal 6 karakter')
+    const hash = await hashPassword(password)
+    try {
+      const [user] = await db.insert(users)
+        .values({ username: username.toLowerCase().trim(), passwordHash: hash })
+        .returning({ id: users.id, username: users.username })
+      const token = await signUserToken({ userId: user.id, username: user.username })
+      return ok({ token, user: { id: user.id, username: user.username } })
+    } catch {
+      return err('Username sudah digunakan', 409)
+    }
+  }
+
+  // LOGIN
+  if (action === 'login') {
+    const { username, password } = await req.json()
+    if (!username || !password) return err('Username dan password diperlukan')
+    const [user] = await db.select().from(users)
+      .where(eq(users.username, username.toLowerCase().trim())).limit(1)
+    if (!user) return err('Username atau password salah', 401)
+    if (!user.isActive) return err('Akun tidak aktif', 403)
+    const hash = await hashPassword(password)
+    if (hash !== user.passwordHash) return err('Username atau password salah', 401)
+    const token = await signUserToken({ userId: user.id, username: user.username })
+    return ok({ token, user: { id: user.id, username: user.username, dailyLimit: user.dailyLimit } })
+  }
+
+  // VERIFY TOKEN
+  if (action === 'verify') {
+    const token = extractToken(req.headers.get('Authorization'))
+    if (!token) return err('Token diperlukan', 401)
+    try {
+      const payload = await verifyToken(token)
+      const [user] = await db.select({
+        id: users.id, username: users.username,
+        isActive: users.isActive, dailyLimit: users.dailyLimit,
+      }).from(users).where(eq(users.id, payload.userId!)).limit(1)
+      if (!user || !user.isActive) return err('Akun tidak ditemukan atau tidak aktif', 401)
+      return ok({ valid: true, user })
+    } catch {
+      return err('Token tidak valid atau kadaluarsa', 401)
+    }
+  }
+
+  return err('Action tidak dikenal')
+}
