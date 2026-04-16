@@ -8,18 +8,23 @@ export default function AdminLogin() {
   const [msg, setMsg] = useState('')
   const router = useRouter()
 
-  async function login(e: React.FormEvent) {
-    e.preventDefault(); setLoading(true); setMsg('')
-    const r = await fetch('/api/admin?action=login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pwd }),
-    })
-    const d = await r.json()
-    if (r.ok) {
-      document.cookie = `nl_admin_token=${d.token}; path=/; max-age=14400; samesite=strict`
-      router.push('/admin')
-    } else { setMsg(d.error || 'Login gagal'); setLoading(false) }
+async function login(e: React.FormEvent) {
+  e.preventDefault(); setLoading(true); setMsg('')
+  const r = await fetch('/api/admin?action=login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pwd }),
+  })
+  const d = await r.json()
+  if (r.ok) {
+    // Set cookie lalu hard redirect (bukan Next.js router)
+    document.cookie = `nl_admin_token=${d.token}; path=/; max-age=14400; samesite=strict`
+    window.location.href = '/admin'   // ← pakai window.location, bukan router.push
+  } else {
+    setMsg(d.error || 'Login gagal')
+    setLoading(false)
   }
+}
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">

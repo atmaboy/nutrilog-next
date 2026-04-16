@@ -1,12 +1,8 @@
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = cookies()
-  const token = (await cookieStore).get('nl_admin_token')?.value
-  if (!token) redirect('/admin/login')
-
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  // Auth check dilakukan HANYA oleh middleware.ts
+  // Jangan tambahkan redirect di sini — menyebabkan redirect loop
   return (
     <div className="flex min-h-screen bg-background">
       <AdminSidebar />
