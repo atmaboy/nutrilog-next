@@ -18,6 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [dayKcal, setDayKcal] = useState<number | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
+  // ── Cek maintenance mode saat layout mount ─────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('nl_token')
     const u = localStorage.getItem('nl_user')
@@ -28,8 +29,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setTheme(savedTheme)
     if (savedTheme === 'light') document.body.classList.add('light')
 
+    // Cek maintenance — jika aktif, logout user dan redirect ke login
+    checkMaintenance(token)
     loadDayKcal(token)
   }, [router])
+
+  async function checkMaintenance(token: string) {
+    try {
+      const res = await fetch('/api/maintenance', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data?.enabled) {
+        // Simpan info maintenance ke localStorage supaya halaman login bisa menampilkan pesan
+        localStorage.setItem('nl_maintenance', JSON.stringify({
+          title: data.title || 'Aplikasi Sedang Dalam Pemeliharaan',
+          description: data.description || 'Kami sedang melakukan peningkatan sistem. Silakan coba beberapa saat lagi.',
+        }))
+        // Hapus sesi user
+        localStorage.removeItem('nl_token')
+        localStorage.removeItem('nl_user')
+        router.replace('/login')
+      }
+    } catch {
+      // Jika gagal fetch, biarkan user tetap bisa akses (fail-open)
+    }
+  }
 
   async function loadDayKcal(token: string) {
     try {

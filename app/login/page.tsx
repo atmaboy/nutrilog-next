@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
+type MaintenanceInfo = { title: string; description: string } | null
+
 export default function LoginPage() {
   const router = useRouter()
   const [tab, setTab] = useState<'login' | 'register'>('login')
@@ -11,16 +13,28 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [maintenance, setMaintenance] = useState<MaintenanceInfo>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('nl_token')
-    if (token) router.replace('/main/catat')
+    if (token) { router.replace('/main/catat'); return }
+
+    // Cek apakah user baru saja di-redirect akibat maintenance
+    const raw = localStorage.getItem('nl_maintenance')
+    if (raw) {
+      try {
+        setMaintenance(JSON.parse(raw))
+      } catch {}
+      // Hapus flag setelah dibaca agar tidak muncul terus
+      localStorage.removeItem('nl_maintenance')
+    }
   }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setMaintenance(null)
     try {
       const endpoint = tab === 'login' ? '/api/auth?action=login' : '/api/auth?action=register'
       const res = await fetch(endpoint, {
@@ -30,6 +44,16 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Terjadi kesalahan'); return }
+
+      // Jika server mengembalikan flag maintenance saat login
+      if (data.maintenance) {
+        setMaintenance({
+          title: data.maintenance.title || 'Aplikasi Sedang Dalam Pemeliharaan',
+          description: data.maintenance.description || 'Silakan coba beberapa saat lagi.',
+        })
+        return
+      }
+
       localStorage.setItem('nl_token', data.token)
       localStorage.setItem('nl_user', JSON.stringify(data.user))
       router.replace('/main/catat')
@@ -69,6 +93,35 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {/* ── MAINTENANCE BANNER ── */}
+        {maintenance && (
+          <div style={{
+            background: 'rgba(251,191,36,.08)',
+            border: '1px solid rgba(251,191,36,.3)',
+            borderRadius: 16,
+            padding: '16px 18px',
+            marginBottom: 18,
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🔧</div>
+            <div style={{
+              fontWeight: 700,
+              fontSize: 15,
+              color: '#FBBF24',
+              marginBottom: 6,
+            }}>
+              {maintenance.title}
+            </div>
+            <div style={{
+              color: 'var(--text-muted)',
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}>
+              {maintenance.description}
+            </div>
+          </div>
+        )}
+
         {/* Card */}
         <div style={{
           background: 'var(--surface)',
@@ -86,7 +139,7 @@ export default function LoginPage() {
             marginBottom: 20,
           }}>
             {(['login', 'register'] as const).map(t => (
-              <button key={t} onClick={() => { setTab(t); setError('') }} style={{
+              <button key={t} onClick={() => { setTab(t); setError(''); setMaintenance(null) }} style={{
                 flex: 1,
                 padding: '9px 0',
                 borderRadius: 10,
@@ -194,7 +247,7 @@ export default function LoginPage() {
 
           <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', marginTop: 14, lineHeight: 1.6 }}>
             {tab === 'login' ? 'Belum punya akun? ' : 'Sudah punya akun? '}
-            <span onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); setError('') }}
+            <span onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); setError(''); setMaintenance(null) }}
               style={{ color: 'var(--accent)', cursor: 'pointer' }}>
               {tab === 'login' ? 'Daftar sekarang' : 'Masuk'}
             </span>
