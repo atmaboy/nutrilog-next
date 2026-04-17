@@ -1,4 +1,4 @@
 import { redirect } from 'next/navigation'
 export default function Root() {
-  redirect('/app-legacy.html')
+  redirect('/login')
 }
