@@ -43,12 +43,15 @@ export function invalidateMaintenanceCache() {
 }
 
 /** Helper: buat Response 503 JSON standar untuk API routes */
-export function maintenanceResponse() {
+export function maintenanceResponse(title?: string, description?: string) {
   return new Response(
     JSON.stringify({
       ok: false,
-      error: 'Aplikasi sedang dalam mode maintenance. Coba lagi beberapa saat.',
-      maintenance: true,
+      error: title ?? 'Aplikasi sedang dalam mode maintenance. Coba lagi beberapa saat.',
+      maintenance: {
+        title: title ?? 'NutriLog sedang dalam perbaikan',
+        description: description ?? 'Kami sedang melakukan peningkatan sistem.',
+      },
     }),
     {
       status: 503,

@@ -43,14 +43,18 @@ export default function LoginPage() {
         body: JSON.stringify({ username: username.trim().toLowerCase(), password }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Terjadi kesalahan'); return }
 
-      // Jika server mengembalikan flag maintenance saat login
+      // Cek maintenance SEBELUM blok !res.ok agar banner tampil
       if (data.maintenance) {
         setMaintenance({
           title: data.maintenance.title || 'Aplikasi Sedang Dalam Pemeliharaan',
           description: data.maintenance.description || 'Silakan coba beberapa saat lagi.',
         })
+        return
+      }
+
+      if (!res.ok) {
+        setError(data.error || 'Terjadi kesalahan')
         return
       }
 
@@ -86,10 +90,10 @@ export default function LoginPage() {
             fontWeight: 900,
             color: 'var(--text)',
           }}>
-            Nutri<span style={{ color: 'var(--accent)' }}>Log</span>
+            Nutri<span style={{ color: 'var(--accent)' }}>Log</span>.
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
-            Analisa nutrisi makananmu dengan AI
+            Food Intelligence Tracker
           </div>
         </div>
 

@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
 
   // ── Maintenance check (blokir login & register, bukan verify) ────────────
   if (action === 'login' || action === 'register') {
-    const { enabled } = await checkMaintenance()
-    if (enabled) return maintenanceResponse()
+    const m = await checkMaintenance()
+    if (m.enabled) return maintenanceResponse(m.title, m.description)
   }
 
   // REGISTER
