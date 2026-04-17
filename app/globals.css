@@ -2,9 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── NUTRILOG CUSTOM VARIABLES ── */
+/* ── DARK THEME (default) ── */
 :root {
-  /* Dark theme (default) */
   --bg: #081520;
   --surface: #0f2030;
   --surface2: #152840;
@@ -18,17 +17,17 @@
   --warn-bg: rgba(251, 176, 64, 0.1);
   --warn-border: rgba(251, 176, 64, 0.25);
   --warn-text: #FBB040;
-
-  /* Nutrisi colors */
   --protein: #60A5FA;
   --carbs: #FBB040;
   --fat: #F87171;
 
-  /* Tailwind/shadcn compat */
+  /* Tailwind/shadcn HSL vars — DARK */
   --background: 208 84% 7%;
   --foreground: 200 50% 92%;
   --card: 208 60% 10%;
   --card-foreground: 200 50% 92%;
+  --popover: 208 60% 10%;
+  --popover-foreground: 200 50% 92%;
   --primary: 152 100% 62%;
   --primary-foreground: 208 84% 7%;
   --secondary: 208 50% 14%;
@@ -45,8 +44,9 @@
   --radius: 0.5rem;
 }
 
-/* ── LIGHT MODE ── */
+/* ── LIGHT THEME ── */
 body.light {
+  /* Custom vars */
   --bg: #f0f4f8;
   --surface: #ffffff;
   --surface2: #e8f0f7;
@@ -63,15 +63,36 @@ body.light {
   --protein: #2563EB;
   --carbs: #D97706;
   --fat: #DC2626;
+
+  /* Tailwind/shadcn HSL vars — LIGHT (wajib ada agar komponen ikut berubah) */
+  --background: 210 40% 96%;
+  --foreground: 210 60% 13%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 60% 13%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 60% 13%;
+  --primary: 158 100% 27%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 30% 90%;
+  --secondary-foreground: 210 60% 20%;
+  --muted: 210 30% 90%;
+  --muted-foreground: 210 20% 40%;
+  --accent: 210 30% 90%;
+  --accent-foreground: 210 60% 20%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 210 30% 80%;
+  --input: 210 30% 80%;
+  --ring: 158 100% 27%;
 }
 
 @layer base {
   * { @apply border-border; }
   body {
-    @apply bg-background text-foreground;
     background-color: var(--bg);
     color: var(--text);
     font-family: 'DM Sans', sans-serif;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 }
 
