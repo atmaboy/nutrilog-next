@@ -165,8 +165,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             padding: 4, marginBottom: 12,
           }}>
             {[
-              { href: '/catat', label: '📷 Catat Makan' },
-              { href: '/riwayat', label: '📊 Riwayat' },
+              { href: '/main/catat', label: '📷 Catat Makan' },
+              { href: '/main/riwayat', label: '📊 Riwayat' },
             ].map(({ href, label }) => (
               <Link key={href} href={href} style={{
                 flex: 1, padding: '9px 0', borderRadius: 10,

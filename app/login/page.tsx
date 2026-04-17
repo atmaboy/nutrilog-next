@@ -14,7 +14,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('nl_token')
-    if (token) router.replace('/catat')
+    if (token) router.replace('/main/catat')
   }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -32,7 +32,7 @@ export default function LoginPage() {
       if (!res.ok) { setError(data.error || 'Terjadi kesalahan'); return }
       localStorage.setItem('nl_token', data.token)
       localStorage.setItem('nl_user', JSON.stringify(data.user))
-      router.replace('/catat')
+      router.replace('/main/catat')
     } catch {
       setError('Tidak dapat terhubung ke server')
     } finally {
