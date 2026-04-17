@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { users } from '@/drizzle/schema'
 import { hashPassword, signUserToken, verifyToken, extractToken } from '@/lib/auth'
 import { ok, err, setCors } from '@/lib/utils'
+import { checkMaintenance, maintenanceResponse } from '@/lib/maintenance'
 import { eq } from 'drizzle-orm'
 
 export async function OPTIONS() {
@@ -12,6 +13,12 @@ export async function OPTIONS() {
 
 export async function POST(req: NextRequest) {
   const action = req.nextUrl.searchParams.get('action')
+
+  // ── Maintenance check (blokir login & register, bukan verify) ────────────
+  if (action === 'login' || action === 'register') {
+    const { enabled } = await checkMaintenance()
+    if (enabled) return maintenanceResponse()
+  }
 
   // REGISTER
   if (action === 'register') {

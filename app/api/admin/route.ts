@@ -4,6 +4,7 @@ import { users, meals, reports, dailyUsage, maintenanceConfig } from '@/drizzle/
 import { verifyAdminPwd, setAdminPwd, getCfg, setCfg, getGlobalLimit, getMaintenance } from '@/lib/admin'
 import { signAdminToken } from '@/lib/auth'
 import { ok, err, setCors } from '@/lib/utils'
+import { invalidateMaintenanceCache } from '@/lib/maintenance'
 import { eq, desc, count, sum } from 'drizzle-orm'
 
 function jsonErr(msg: string, status = 500) {
@@ -12,14 +13,12 @@ function jsonErr(msg: string, status = 500) {
   return Response.json({ error: msg }, { status, headers: h })
 }
 
-// ── OPTIONS (CORS preflight) ─────────────────────────────────────────────────
 export async function OPTIONS() {
   const h = new Headers()
   setCors(h)
   return new Response(null, { status: 204, headers: h })
 }
 
-// ── POST ─────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const action = req.nextUrl.searchParams.get('action')
@@ -67,15 +66,39 @@ export async function POST(req: NextRequest) {
     }
 
     // UPDATE MAINTENANCE
+    // Bug fix: onConflictDoUpdate pakai serial id tidak reliable.
+    // Gunakan upsert manual: cek dulu apakah row ada, lalu UPDATE atau INSERT.
     if (action === 'update_maintenance') {
       const body = await req.json()
-      await db.insert(maintenanceConfig)
-        .values({ enabled: body.enabled, title: body.title, description: body.description, updatedAt: new Date() })
-        .onConflictDoUpdate({
-          target: maintenanceConfig.id,
-          set: { enabled: body.enabled, title: body.title, description: body.description, updatedAt: new Date() },
+      const { enabled, title, description } = body
+
+      const existing = await db.select({ id: maintenanceConfig.id })
+        .from(maintenanceConfig).limit(1)
+
+      if (existing.length > 0) {
+        // Row sudah ada → UPDATE
+        await db.update(maintenanceConfig)
+          .set({
+            enabled:     enabled     ?? false,
+            title:       title       ?? 'NutriLog sedang dalam perbaikan',
+            description: description ?? 'Kami sedang melakukan peningkatan sistem.',
+            updatedAt:   new Date(),
+          })
+          .where(eq(maintenanceConfig.id, existing[0].id))
+      } else {
+        // Belum ada row → INSERT pertama kali
+        await db.insert(maintenanceConfig).values({
+          enabled:     enabled     ?? false,
+          title:       title       ?? 'NutriLog sedang dalam perbaikan',
+          description: description ?? 'Kami sedang melakukan peningkatan sistem.',
+          updatedAt:   new Date(),
         })
-      return ok({ message: 'Status maintenance disimpan' })
+      }
+
+      // Invalidate in-memory cache agar perubahan langsung berlaku
+      invalidateMaintenanceCache()
+
+      return ok({ message: `Maintenance ${enabled ? 'diaktifkan' : 'dinonaktifkan'}` })
     }
 
     // CREATE USER
@@ -121,12 +144,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// ── GET ──────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
     const action = req.nextUrl.searchParams.get('action')
 
-    // DASHBOARD STATS
     if (action === 'dashboard') {
       const [totalUsers]  = await db.select({ c: count() }).from(users)
       const [activeUsers] = await db.select({ c: count() }).from(users).where(eq(users.isActive, true))
@@ -155,7 +176,6 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // LIST USERS
     if (action === 'users') {
       const page    = parseInt(req.nextUrl.searchParams.get('page') || '1')
       const perPage = parseInt(req.nextUrl.searchParams.get('per_page') || '20')
@@ -165,7 +185,6 @@ export async function GET(req: NextRequest) {
       return ok({ users: list, total: c, page, perPage })
     }
 
-    // LIST REPORTS
     if (action === 'reports') {
       const status = req.nextUrl.searchParams.get('status') || 'all'
       const list = status === 'all'
@@ -174,7 +193,6 @@ export async function GET(req: NextRequest) {
       return ok({ reports: list })
     }
 
-    // CONFIG
     if (action === 'config') {
       const dailyLimit      = await getGlobalLimit()
       const anthropicApiKey = await getCfg('anthropic_api_key')
@@ -182,7 +200,6 @@ export async function GET(req: NextRequest) {
       return ok({ dailyLimit, anthropicApiKey: anthropicApiKey ? '••••••••' : '', maintenance })
     }
 
-    // USER MEALS
     if (action === 'user_meals') {
       const userId = req.nextUrl.searchParams.get('user_id')
       if (!userId) return err('User ID diperlukan')
@@ -197,7 +214,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ── DELETE ───────────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
   try {
     const action = req.nextUrl.searchParams.get('action')

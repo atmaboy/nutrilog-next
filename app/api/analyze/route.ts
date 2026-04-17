@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { dailyUsage, adminConfig } from '@/drizzle/schema'
+import { dailyUsage } from '@/drizzle/schema'
 import { verifyToken, extractToken } from '@/lib/auth'
 import { getCfg, getGlobalLimit } from '@/lib/admin'
 import { ok, err, setCors, todayISO } from '@/lib/utils'
+import { checkMaintenance, maintenanceResponse } from '@/lib/maintenance'
 import { eq, and, sql } from 'drizzle-orm'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -13,7 +14,11 @@ export async function OPTIONS() {
 }
 
 export async function POST(req: NextRequest) {
-  // Auth
+  // ── Maintenance check ─────────────────────────────────────────────────────
+  const { enabled } = await checkMaintenance()
+  if (enabled) return maintenanceResponse()
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
   const token = extractToken(req.headers.get('Authorization'))
   if (!token) return err('Token diperlukan', 401)
   let payload: { userId: string; username: string }
@@ -124,7 +129,7 @@ Format respons WAJIB (JSON saja, tanpa teks lain):
     return err(`Analisa gagal: ${e.message}`, 500)
   }
 
-  // ✅ Increment daily usage SAAT analisis (bukan saat save)
+  // Increment daily usage
   await db.insert(dailyUsage)
     .values({ userId: payload.userId, date: today, count: 1 })
     .onConflictDoUpdate({
@@ -134,7 +139,6 @@ Format respons WAJIB (JSON saja, tanpa teks lain):
 
   const usedAfter = (usage?.count ?? 0) + 1
 
-  // ✅ Kembalikan imageDataUrl agar frontend bisa tampilkan & kirim saat save
   return ok({
     analysis,
     imageDataUrl: `data:${mimeType};base64,${imageBase64}`,
