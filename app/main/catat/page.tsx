@@ -63,6 +63,8 @@ export default function CatatPage() {
   const [showAddDish, setShowAddDish] = useState(false)
   const [newDish, setNewDish] = useState({ name: '', portion: '', calories: 0, protein: 0, carbs: 0, fat: 0 })
 
+  // State imageDataUrl
+
   function authHeaders() {
     return { Authorization: `Bearer ${localStorage.getItem('nl_token') || ''}` }
   }
@@ -114,56 +116,63 @@ export default function CatatPage() {
     setOpenDishIdx(null)
   }
 
-  async function analyze(correction?: string) {
-    if (!imgBase64) return
-    correction ? setReanalyzing(true) : setLoading(true)
-    setError('')
-    setWarn('')
-    try {
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: imgBase64, mimeType: imgMime, correction }),
-      })
-      const data = await res.json()
-      if (res.status === 429) { setWarn(data.error || 'Batas analisa harian tercapai'); setStep('preview'); return }
-      if (!res.ok) { setError(data.error || 'Analisa gagal'); return }
-      setResult(data.analysis)
-      setStep('result')
-      setShowReanalyze(false)
-      setReanalyzeText('')
-    } catch {
-      setError('Tidak dapat terhubung ke server')
-    } finally {
-      setLoading(false)
-      setReanalyzing(false)
-    }
-  }
+  // Tambah state imageDataUrl
+const [imageDataUrl, setImageDataUrl] = useState('')
 
-  async function saveMeal() {
-    if (!result || saving) return
-    setSaving(true)
-    try {
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: imgBase64, mimeType: imgMime, saveOnly: true, analysisOverride: result }),
-      })
-      // Fallback: use history save endpoint if analyze doesn't support saveOnly
-      if (!res.ok) {
-        // Direct save via re-analyze is the flow — result already saved on analyze
-        setSaved(true)
-        toast.success('Berhasil disimpan ke riwayat!')
-        return
-      }
-      setSaved(true)
-      toast.success('Berhasil disimpan ke riwayat!')
-    } catch {
-      toast.error('Gagal menyimpan')
-    } finally {
-      setSaving(false)
-    }
+// Di dalam fungsi analyze(), update bagian setResult:
+async function analyze(correction?: string) {
+  if (!imgBase64) return
+  correction ? setReanalyzing(true) : setLoading(true)
+  setError('')
+  setWarn('')
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imgBase64, mimeType: imgMime, correction }),
+    })
+    const data = await res.json()
+    if (res.status === 429) { setWarn(data.error || 'Batas analisa harian tercapai'); setStep('preview'); return }
+    if (!res.ok) { setError(data.error || 'Analisa gagal'); return }
+    setResult(data.analysis)
+    setImageDataUrl(data.imageDataUrl || '')  // ✅ simpan data URL dari server
+    setStep('result')
+    setShowReanalyze(false)
+    setReanalyzeText('')
+  } catch {
+    setError('Tidak dapat terhubung ke server')
+  } finally {
+    setLoading(false)
+    setReanalyzing(false)
   }
+}
+
+// Perbaiki saveMeal() — POST ke /api/history, kirim analysis + imageDataUrl
+async function saveMeal() {
+  if (!result || saving) return
+  setSaving(true)
+  try {
+    const res = await fetch('/api/history', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        analysis: result,
+        imageDataUrl,   // ✅ kirim foto untuk disimpan ke DB
+      }),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      toast.error(data.error || 'Gagal menyimpan')
+      return
+    }
+    setSaved(true)
+    toast.success('Berhasil disimpan ke riwayat!')
+  } catch {
+    toast.error('Gagal menyimpan')
+  } finally {
+    setSaving(false)
+  }
+}
 
   function recalc(dishes: Dish[]) {
     return {
@@ -310,6 +319,18 @@ export default function CatatPage() {
       {/* ── STEP: RESULT ── */}
       {step === 'result' && result && (
         <div style={{ animation: 'slideUp .38s cubic-bezier(.22,1,.36,1) both' }}>
+        {/* ── STEP: RESULT ── */}
+
+    {/* ✅ Tampilkan foto makanan */}
+    {imageDataUrl && (
+      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
+        <img
+          src={imageDataUrl}
+          alt="Foto makanan"
+          style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }}
+        />
+      </div>
+    )}
 
           {/* Re-analyze panel */}
           {showReanalyze && (

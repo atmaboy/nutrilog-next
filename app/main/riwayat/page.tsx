@@ -12,6 +12,7 @@ type Meal = {
   totalProtein: string
   totalCarbs: string
   totalFat: string
+  imageUrl?: string | null   // ✅ tambahkan ini
   loggedAt: string
   rawAnalysis?: { dishes: Dish[]; total: any; notes?: string; healthScore?: number; assessment?: string }
 }
@@ -209,6 +210,17 @@ export default function RiwayatPage() {
               <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 16 }}>
                 {fmtDate(modalMeal.loggedAt)} · {fmtTime(modalMeal.loggedAt)}
               </div>
+
+              {/* Foto makanan */}
+{modalMeal.imageUrl && (
+  <div style={{ borderRadius: 14, overflow: 'hidden', marginBottom: 14 }}>
+    <img
+      src={modalMeal.imageUrl}
+      alt="Foto makanan"
+      style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
+    />
+  </div>
+)}
 
               {/* Total badges */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>

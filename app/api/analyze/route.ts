@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { meals, dailyUsage, adminConfig } from '@/drizzle/schema'
+import { dailyUsage, adminConfig } from '@/drizzle/schema'
 import { verifyToken, extractToken } from '@/lib/auth'
 import { getCfg, getGlobalLimit } from '@/lib/admin'
 import { ok, err, setCors, todayISO } from '@/lib/utils'
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   let imageBase64 = '', mimeType = 'image/jpeg'
 
   if (contentType.includes('application/json')) {
-    const body = await req.json()
+    const body  = await req.json()
     imageBase64 = body.image || ''
     mimeType    = body.mimeType || 'image/jpeg'
   } else if (contentType.includes('multipart/form-data')) {
@@ -106,7 +106,9 @@ Format respons WAJIB (JSON saja, tanpa teks lain):
     "carbs": 40.0,
     "fat": 8.0
   },
-  "notes": "catatan singkat tentang nilai gizi"
+  "notes": "catatan singkat tentang nilai gizi",
+  "healthScore": 7,
+  "assessment": "penilaian singkat dalam 1-2 kalimat"
 }`,
           },
         ],
@@ -122,18 +124,7 @@ Format respons WAJIB (JSON saja, tanpa teks lain):
     return err(`Analisa gagal: ${e.message}`, 500)
   }
 
-  // Save meal
-  const [meal] = await db.insert(meals).values({
-    userId:        payload.userId,
-    dishNames:     analysis.dishes?.map((d: any) => d.name) ?? [],
-    totalCalories: Math.round(analysis.total?.calories ?? 0),
-    totalProtein:  String(analysis.total?.protein ?? 0),
-    totalCarbs:    String(analysis.total?.carbs ?? 0),
-    totalFat:      String(analysis.total?.fat ?? 0),
-    rawAnalysis:   analysis,
-  }).returning()
-
-  // Update daily usage
+  // ✅ Increment daily usage SAAT analisis (bukan saat save)
   await db.insert(dailyUsage)
     .values({ userId: payload.userId, date: today, count: 1 })
     .onConflictDoUpdate({
@@ -142,9 +133,11 @@ Format respons WAJIB (JSON saja, tanpa teks lain):
     })
 
   const usedAfter = (usage?.count ?? 0) + 1
+
+  // ✅ Kembalikan imageDataUrl agar frontend bisa tampilkan & kirim saat save
   return ok({
-    meal,
     analysis,
+    imageDataUrl: `data:${mimeType};base64,${imageBase64}`,
     usage: { used: usedAfter, limit: userLimit, remaining: Math.max(0, userLimit - usedAfter) },
   })
 }

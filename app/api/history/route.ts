@@ -111,3 +111,28 @@ export async function DELETE(req: NextRequest) {
   await db.delete(meals).where(eq(meals.id, id))
   return ok({ message: 'Data berhasil dihapus' })
 }
+
+// Tambahkan handler POST untuk save meal. Terima imageDataUrl di frontend
+
+export async function POST(req: NextRequest) {
+  const user = await authUser(req)
+  if (!user) return err('Token tidak valid', 401)
+
+  const body = await req.json()
+  const { analysis, imageDataUrl } = body
+
+  if (!analysis) return err('Data analisis diperlukan')
+
+  const [meal] = await db.insert(meals).values({
+    userId:        user.userId,
+    dishNames:     analysis.dishes?.map((d: any) => d.name) ?? [],
+    totalCalories: Math.round(analysis.total?.calories ?? 0),
+    totalProtein:  String(analysis.total?.protein ?? 0),
+    totalCarbs:    String(analysis.total?.carbs ?? 0),
+    totalFat:      String(analysis.total?.fat ?? 0),
+    imageUrl:      imageDataUrl ?? null,   // ✅ simpan foto
+    rawAnalysis:   analysis,
+  }).returning()
+
+  return ok({ meal })
+}
