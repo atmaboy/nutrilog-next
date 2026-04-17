@@ -22,7 +22,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     try {
-      const endpoint = tab === 'login' ? '/api/auth/login' : '/api/auth/register'
+      const endpoint = tab === 'login' ? '/api/auth?action=login' : '/api/auth?action=register'
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
