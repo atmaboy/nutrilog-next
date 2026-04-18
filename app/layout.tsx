@@ -28,6 +28,25 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="id" suppressHydrationWarning>
+      <head>
+        {/* Anti-flash: set html.dark SEBELUM paint berdasarkan preferensi tersimpan.
+            Default = 'dark' jika belum pernah disimpan. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(){
+                try {
+                  var t = localStorage.getItem('nl_theme') || 'dark';
+                  if (t === 'dark') document.documentElement.classList.add('dark');
+                  else document.documentElement.classList.remove('dark');
+                } catch(e) {
+                  document.documentElement.classList.add('dark');
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         {children}
         <Toaster richColors position="top-center" />
