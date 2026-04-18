@@ -15,7 +15,7 @@ export default function ReportActions({ id, status }: { id: string; status: stri
       {status === 'open' && (
         <button
           onClick={async () => {
-            const r = await fetch('/api/admin?action=update-report', {
+            const r = await fetch('/api/admin?action=update_report', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -35,7 +35,7 @@ export default function ReportActions({ id, status }: { id: string; status: stri
       <button
         onClick={async () => {
           if (!confirm('Hapus laporan ini?')) return
-          const r = await fetch(`/api/admin?action=delete-report&id=${id}`, {
+          const r = await fetch(`/api/admin?action=delete_report&id=${id}`, {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${tok()}` },
           })
