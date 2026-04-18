@@ -2,88 +2,116 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── DARK THEME (default) ── */
-:root {
-  --bg: #081520;
-  --surface: #0f2030;
-  --surface2: #152840;
-  --text: #e8f4f8;
-  --text-muted: #6b9ab8;
-  --text-sub: #8ab4cc;
-  --accent: #3DFF95;
-  --accent-dim: rgba(61, 255, 149, 0.08);
-  --border: rgba(61, 149, 255, 0.15);
-  --border2: rgba(61, 149, 255, 0.25);
-  --warn-bg: rgba(251, 176, 64, 0.1);
-  --warn-border: rgba(251, 176, 64, 0.25);
-  --warn-text: #FBB040;
-  --protein: #60A5FA;
-  --carbs: #FBB040;
-  --fat: #F87171;
+/* ══════════════════════════════════════════════
+   NUTRILOG — DESIGN TOKENS
+   Strategi: html.dark  → gelap (default)
+             html (no class) → terang
+   Tailwind darkMode: ['class'] sudah di-set.
+   ══════════════════════════════════════════════ */
 
-  /* Tailwind/shadcn HSL vars — DARK */
-  --background: 208 84% 7%;
-  --foreground: 200 50% 92%;
-  --card: 208 60% 10%;
-  --card-foreground: 200 50% 92%;
-  --popover: 208 60% 10%;
-  --popover-foreground: 200 50% 92%;
-  --primary: 152 100% 62%;
-  --primary-foreground: 208 84% 7%;
-  --secondary: 208 50% 14%;
-  --secondary-foreground: 200 50% 92%;
-  --muted: 208 50% 14%;
-  --muted-foreground: 208 30% 55%;
-  --accent: 208 50% 14%;
-  --accent-foreground: 200 50% 92%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 208 40% 18%;
-  --input: 208 40% 18%;
-  --ring: 152 100% 62%;
-  --radius: 0.5rem;
+/* ── LIGHT MODE (default / no class) ─────────── */
+:root {
+  /* Custom vars — Main App */
+  --bg:          #f0f4f8;
+  --surface:     #ffffff;
+  --surface2:    #e8f0f7;
+  --text:        #0d2136;
+  --text-muted:  #4a7090;
+  --text-sub:    #2e5a7a;
+  --accent-custom: #00875a;
+  --accent-dim:  rgba(0, 135, 90, 0.08);
+  --border-custom: rgba(0, 80, 140, 0.15);
+  --border2:     rgba(0, 80, 140, 0.25);
+  --warn-bg:     rgba(180, 100, 0, 0.08);
+  --warn-border: rgba(180, 100, 0, 0.2);
+  --warn-text:   #b46400;
+  --protein:     #2563EB;
+  --carbs:       #D97706;
+  --fat:         #DC2626;
+
+  /* Tailwind/shadcn HSL vars — LIGHT */
+  --background:             210 40% 96%;
+  --foreground:             210 60% 13%;
+  --card:                   0 0% 100%;
+  --card-foreground:        210 60% 13%;
+  --popover:                0 0% 100%;
+  --popover-foreground:     210 60% 13%;
+  --primary:                158 100% 27%;
+  --primary-foreground:     0 0% 100%;
+  --secondary:              210 30% 90%;
+  --secondary-foreground:   210 60% 20%;
+  --muted:                  210 30% 90%;
+  --muted-foreground:       210 20% 40%;
+  --accent:                 210 30% 90%;
+  --accent-foreground:      210 60% 20%;
+  --destructive:            0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border:                 210 30% 80%;
+  --input:                  210 30% 80%;
+  --ring:                   158 100% 27%;
+  --radius:                 0.5rem;
+
+  /* Sidebar vars — LIGHT */
+  --sidebar-background:             210 40% 96%;
+  --sidebar-foreground:             210 60% 20%;
+  --sidebar-primary:                158 100% 27%;
+  --sidebar-primary-foreground:     0 0% 100%;
+  --sidebar-accent:                 210 30% 88%;
+  --sidebar-accent-foreground:      210 60% 20%;
+  --sidebar-border:                 210 30% 82%;
+  --sidebar-ring:                   158 100% 27%;
 }
 
-/* ── LIGHT THEME ── */
-body.light {
-  /* Custom vars */
-  --bg: #f0f4f8;
-  --surface: #ffffff;
-  --surface2: #e8f0f7;
-  --text: #0d2136;
-  --text-muted: #4a7090;
-  --text-sub: #2e5a7a;
-  --accent: #00875a;
-  --accent-dim: rgba(0, 135, 90, 0.08);
-  --border: rgba(0, 80, 140, 0.15);
-  --border2: rgba(0, 80, 140, 0.25);
-  --warn-bg: rgba(180, 100, 0, 0.08);
-  --warn-border: rgba(180, 100, 0, 0.2);
-  --warn-text: #b46400;
-  --protein: #2563EB;
-  --carbs: #D97706;
-  --fat: #DC2626;
+/* ── DARK MODE (html.dark) ────────────────────── */
+.dark {
+  /* Custom vars — Main App */
+  --bg:          #081520;
+  --surface:     #0f2030;
+  --surface2:    #152840;
+  --text:        #e8f4f8;
+  --text-muted:  #6b9ab8;
+  --text-sub:    #8ab4cc;
+  --accent-custom: #3DFF95;
+  --accent-dim:  rgba(61, 255, 149, 0.08);
+  --border-custom: rgba(61, 149, 255, 0.15);
+  --border2:     rgba(61, 149, 255, 0.25);
+  --warn-bg:     rgba(251, 176, 64, 0.1);
+  --warn-border: rgba(251, 176, 64, 0.25);
+  --warn-text:   #FBB040;
+  --protein:     #60A5FA;
+  --carbs:       #FBB040;
+  --fat:         #F87171;
 
-  /* Tailwind/shadcn HSL vars — LIGHT (wajib ada agar komponen ikut berubah) */
-  --background: 210 40% 96%;
-  --foreground: 210 60% 13%;
-  --card: 0 0% 100%;
-  --card-foreground: 210 60% 13%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 210 60% 13%;
-  --primary: 158 100% 27%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 210 30% 90%;
-  --secondary-foreground: 210 60% 20%;
-  --muted: 210 30% 90%;
-  --muted-foreground: 210 20% 40%;
-  --accent: 210 30% 90%;
-  --accent-foreground: 210 60% 20%;
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 210 30% 80%;
-  --input: 210 30% 80%;
-  --ring: 158 100% 27%;
+  /* Tailwind/shadcn HSL vars — DARK */
+  --background:             208 84% 7%;
+  --foreground:             200 50% 92%;
+  --card:                   208 60% 10%;
+  --card-foreground:        200 50% 92%;
+  --popover:                208 60% 10%;
+  --popover-foreground:     200 50% 92%;
+  --primary:                152 100% 62%;
+  --primary-foreground:     208 84% 7%;
+  --secondary:              208 50% 14%;
+  --secondary-foreground:   200 50% 92%;
+  --muted:                  208 50% 14%;
+  --muted-foreground:       208 30% 55%;
+  --accent:                 208 50% 14%;
+  --accent-foreground:      200 50% 92%;
+  --destructive:            0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+  --border:                 208 40% 18%;
+  --input:                  208 40% 18%;
+  --ring:                   152 100% 62%;
+
+  /* Sidebar vars — DARK */
+  --sidebar-background:             208 60% 10%;
+  --sidebar-foreground:             200 50% 80%;
+  --sidebar-primary:                152 100% 62%;
+  --sidebar-primary-foreground:     208 84% 7%;
+  --sidebar-accent:                 208 50% 16%;
+  --sidebar-accent-foreground:      200 50% 90%;
+  --sidebar-border:                 208 40% 18%;
+  --sidebar-ring:                   152 100% 62%;
 }
 
 @layer base {
@@ -96,7 +124,7 @@ body.light {
   }
 }
 
-/* ── ANIMATIONS ── */
+/* ── ANIMATIONS ─────────────────────────────── */
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
