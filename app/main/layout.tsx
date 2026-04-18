@@ -18,7 +18,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [dayKcal, setDayKcal] = useState<number | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
-  // ── Cek maintenance mode saat layout mount ─────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('nl_token')
     const u = localStorage.getItem('nl_user')
@@ -27,9 +26,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     const savedTheme = (localStorage.getItem('nl_theme') || 'dark') as 'dark' | 'light'
     setTheme(savedTheme)
-    if (savedTheme === 'light') document.body.classList.add('light')
+    // Gunakan html.dark — konsisten dengan globals.css & Tailwind class strategy
+    if (savedTheme === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
 
-    // Cek maintenance — jika aktif, logout user dan redirect ke login
     checkMaintenance(token)
     loadDayKcal(token)
   }, [router])
@@ -43,18 +46,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if (!res.ok) return
       const data = await res.json()
       if (data?.enabled) {
-        // Simpan info maintenance ke localStorage supaya halaman login bisa menampilkan pesan
         localStorage.setItem('nl_maintenance', JSON.stringify({
           title: data.title || 'Aplikasi Sedang Dalam Pemeliharaan',
           description: data.description || 'Kami sedang melakukan peningkatan sistem. Silakan coba beberapa saat lagi.',
         }))
-        // Hapus sesi user
         localStorage.removeItem('nl_token')
         localStorage.removeItem('nl_user')
         router.replace('/login')
       }
     } catch {
-      // Jika gagal fetch, biarkan user tetap bisa akses (fail-open)
+      // fail-open
     }
   }
 
@@ -73,8 +74,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const next = theme === 'dark' ? 'light' : 'dark'
     setTheme(next)
     localStorage.setItem('nl_theme', next)
-    if (next === 'light') document.body.classList.add('light')
-    else document.body.classList.remove('light')
+    // Pakai documentElement (html tag) agar .dark class konsisten dengan CSS vars
+    if (next === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
   }
 
   function logout() {
@@ -120,18 +125,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <header style={{
           background: 'var(--bg)',
           padding: 'calc(10px + env(safe-area-inset-top, 0px)) 16px 0',
-          borderBottom: '1px solid var(--border)',
+          borderBottom: '1px solid var(--border-custom)',
           position: 'sticky',
           top: 0,
           zIndex: 10,
           flexShrink: 0,
-          transition: 'background .3s, border-color .3s',
+          transition: 'background .25s, border-color .25s',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             {/* Logo */}
             <div>
               <div style={{ fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 900, color: 'var(--text)' }}>
-                Nutri<span style={{ color: 'var(--accent)' }}>Log</span>
+                Nutri<span style={{ color: 'var(--accent-custom)' }}>Log</span>
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 1 }}>AI Food Tracker</div>
             </div>
@@ -142,12 +147,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {dayKcal !== null && dayKcal > 0 && (
                 <div style={{
                   background: 'var(--accent-dim)',
-                  border: '1px solid rgba(61,255,149,.22)',
+                  border: '1px solid var(--border-custom)',
                   borderRadius: 10,
                   padding: '5px 9px',
                   textAlign: 'center',
                 }}>
-                  <div style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 14, fontFamily: "'Fraunces', serif" }}>
+                  <div style={{ color: 'var(--accent-custom)', fontWeight: 700, fontSize: 14, fontFamily: "'Fraunces', serif" }}>
                     {dayKcal.toLocaleString('id-ID')}
                   </div>
                   <div style={{ color: 'var(--text-muted)', fontSize: 9 }}>kkal hari ini</div>
@@ -157,7 +162,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {/* Theme toggle */}
               <button onClick={toggleTheme} style={{
                 width: 34, height: 34, borderRadius: 10,
-                background: 'var(--surface)', border: '1px solid var(--border)',
+                background: 'var(--surface)', border: '1px solid var(--border-custom)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 15, cursor: 'pointer',
               }}>
@@ -167,12 +172,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {/* User chip */}
               <div onClick={() => setShowUserMenu(true)} style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                background: 'var(--surface)', border: '1px solid var(--border)',
+                background: 'var(--surface)', border: '1px solid var(--border-custom)',
                 borderRadius: 20, padding: '5px 10px 5px 7px', cursor: 'pointer',
               }}>
                 <div style={{
                   width: 22, height: 22, borderRadius: '50%',
-                  background: 'var(--accent)', color: '#081520',
+                  background: 'var(--accent-custom)', color: '#081520',
                   fontWeight: 700, fontSize: 10,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
@@ -199,7 +204,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 flex: 1, padding: '9px 0', borderRadius: 10,
                 fontWeight: 600, fontSize: 13,
                 textAlign: 'center', textDecoration: 'none',
-                background: pathname === href ? 'var(--accent)' : 'transparent',
+                background: pathname === href ? 'var(--accent-custom)' : 'transparent',
                 color: pathname === href ? '#081520' : 'var(--text-muted)',
                 transition: 'all .22s',
               }}>
@@ -230,13 +235,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             background: 'var(--surface)', borderRadius: '22px 22px 0 0',
             width: '100%', maxWidth: 480, padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))',
           }}>
-            <div style={{ width: 36, height: 4, background: 'var(--border)', borderRadius: 4, margin: '0 auto 20px' }} />
+            <div style={{ width: 36, height: 4, background: 'var(--border-custom)', borderRadius: 4, margin: '0 auto 20px' }} />
             <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 4 }}>@{user.username}</div>
             <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 20 }}>Akun NutriLog</div>
 
             <button onClick={() => { setShowUserMenu(false); setShowReport(true); setReportDone(false) }} style={{
               width: '100%', padding: '13px 16px', borderRadius: 13, marginBottom: 8,
-              background: 'var(--surface2)', border: '1px solid var(--border)',
+              background: 'var(--surface2)', border: '1px solid var(--border-custom)',
               color: 'var(--text)', fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left',
             }}>
               🚩 Kirim Laporan / Masukan
@@ -267,7 +272,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>🚩 Kirim Laporan</div>
               <button onClick={() => setShowReport(false)} style={{
-                background: 'var(--surface2)', border: '1px solid var(--border)',
+                background: 'var(--surface2)', border: '1px solid var(--border-custom)',
                 borderRadius: 9, padding: '6px 12px', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
               }}>✕ Tutup</button>
             </div>
@@ -279,7 +284,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Terima kasih atas masukan kamu.</div>
                 <button onClick={() => setReportDone(false)} style={{
                   marginTop: 16, padding: '10px 20px', borderRadius: 12,
-                  background: 'var(--surface2)', border: '1px solid var(--border)',
+                  background: 'var(--surface2)', border: '1px solid var(--border-custom)',
                   color: 'var(--text)', fontWeight: 600, fontSize: 13, cursor: 'pointer',
                 }}>Kirim Laporan Lain</button>
               </div>
@@ -301,7 +306,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
                 <button onClick={submitReport} disabled={reportSending || !reportMsg.trim()} style={{
                   width: '100%', padding: 14, borderRadius: 13,
-                  background: 'var(--accent)', color: '#081520',
+                  background: 'var(--accent-custom)', color: '#081520',
                   fontWeight: 700, fontSize: 15, border: 'none',
                   cursor: reportSending ? 'not-allowed' : 'pointer',
                   opacity: reportSending || !reportMsg.trim() ? 0.6 : 1,
