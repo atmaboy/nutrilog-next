@@ -20,11 +20,6 @@ type AnalysisResult = {
   assessment?: string
 }
 
-type SavedMeal = {
-  meal: { id: string }
-  usage: { used: number; limit: number; remaining: number }
-}
-
 const ACCENT = 'var(--accent)'
 const S2 = 'var(--surface2)'
 const BORDER = 'var(--border)'
@@ -37,6 +32,7 @@ export default function CatatPage() {
   const [imgPreview, setImgPreview] = useState('')
   const [imgBase64, setImgBase64] = useState('')
   const [imgMime, setImgMime] = useState('image/jpeg')
+  const [imageDataUrl, setImageDataUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [warn, setWarn] = useState('')
@@ -44,26 +40,20 @@ export default function CatatPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  // Re-analyze
   const [showReanalyze, setShowReanalyze] = useState(false)
   const [reanalyzeText, setReanalyzeText] = useState('')
   const [reanalyzing, setReanalyzing] = useState(false)
 
-  // Edit total
   const [showEditTotal, setShowEditTotal] = useState(false)
   const [editKcal, setEditKcal] = useState(0)
   const [editProt, setEditProt] = useState(0)
   const [editCarb, setEditCarb] = useState(0)
   const [editFat, setEditFat] = useState(0)
 
-  // Edit per-dish
   const [openDishIdx, setOpenDishIdx] = useState<number | null>(null)
 
-  // Add dish
   const [showAddDish, setShowAddDish] = useState(false)
   const [newDish, setNewDish] = useState({ name: '', portion: '', calories: 0, protein: 0, carbs: 0, fat: 0 })
-
-  // State imageDataUrl
 
   function authHeaders() {
     return { Authorization: `Bearer ${localStorage.getItem('nl_token') || ''}` }
@@ -93,7 +83,11 @@ export default function CatatPage() {
   async function handleFile(file: File) {
     reset()
     const reader = new FileReader()
-    reader.onload = e => setImgPreview(e.target!.result as string)
+    reader.onload = e => {
+      const preview = e.target!.result as string
+      setImgPreview(preview)
+      setImageDataUrl(preview)
+    }
     reader.readAsDataURL(file)
     const { base64, mime } = await compressImage(file)
     setImgBase64(base64)
@@ -105,74 +99,95 @@ export default function CatatPage() {
     setStep('upload')
     setImgPreview('')
     setImgBase64('')
+    setImgMime('image/jpeg')
+    setImageDataUrl('')
     setResult(null)
     setError('')
     setWarn('')
+    setSaving(false)
     setSaved(false)
     setShowReanalyze(false)
     setReanalyzeText('')
+    setReanalyzing(false)
     setShowEditTotal(false)
     setShowAddDish(false)
     setOpenDishIdx(null)
   }
 
-  // Tambah state imageDataUrl
-const [imageDataUrl, setImageDataUrl] = useState('')
+  async function analyze(correction?: string) {
+    if (!imgBase64) return
 
-// Di dalam fungsi analyze(), update bagian setResult:
-async function analyze(correction?: string) {
-  if (!imgBase64) return
-  correction ? setReanalyzing(true) : setLoading(true)
-  setError('')
-  setWarn('')
-  try {
-    const res = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: imgBase64, mimeType: imgMime, correction }),
-    })
-    const data = await res.json()
-    if (res.status === 429) { setWarn(data.error || 'Batas analisa harian tercapai'); setStep('preview'); return }
-    if (!res.ok) { setError(data.error || 'Analisa gagal'); return }
-    setResult(data.analysis)
-    setImageDataUrl(data.imageDataUrl || '')  // ✅ simpan data URL dari server
-    setStep('result')
-    setShowReanalyze(false)
-    setReanalyzeText('')
-  } catch {
-    setError('Tidak dapat terhubung ke server')
-  } finally {
-    setLoading(false)
-    setReanalyzing(false)
-  }
-}
-
-// Perbaiki saveMeal() — POST ke /api/history, kirim analysis + imageDataUrl
-async function saveMeal() {
-  if (!result || saving) return
-  setSaving(true)
-  try {
-    const res = await fetch('/api/history', {
-      method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        analysis: result,
-        imageDataUrl,   // ✅ kirim foto untuk disimpan ke DB
-      }),
-    })
-    if (!res.ok) {
-      const data = await res.json()
-      toast.error(data.error || 'Gagal menyimpan')
-      return
+    const isCorrection = !!correction?.trim()
+    if (isCorrection) {
+      setReanalyzing(true)
+      setSaved(false)
+    } else {
+      setLoading(true)
     }
-    setSaved(true)
-    toast.success('Berhasil disimpan ke riwayat!')
-  } catch {
-    toast.error('Gagal menyimpan')
-  } finally {
-    setSaving(false)
+
+    setError('')
+    setWarn('')
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imgBase64, mimeType: imgMime, correction }),
+      })
+      const data = await res.json()
+
+      if (res.status === 429) {
+        setWarn(data.error || 'Batas analisa harian tercapai')
+        setStep('preview')
+        return
+      }
+
+      if (!res.ok) {
+        setError(data.error || 'Analisa gagal')
+        return
+      }
+
+      setResult(data.analysis)
+      setStep('result')
+      setShowReanalyze(false)
+      setReanalyzeText('')
+      setShowEditTotal(false)
+      setShowAddDish(false)
+      setOpenDishIdx(null)
+      toast.success(isCorrection ? 'Hasil koreksi berhasil diperbarui' : 'Analisa selesai')
+    } catch {
+      setError('Tidak dapat terhubung ke server')
+    } finally {
+      setLoading(false)
+      setReanalyzing(false)
+    }
   }
-}
+
+  async function saveMeal() {
+    if (!result || saving) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/history', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          analysis: result,
+          imageDataUrl,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        toast.error(data.error || 'Gagal menyimpan')
+        return
+      }
+      setSaved(true)
+      toast.success('Berhasil disimpan ke riwayat!')
+    } catch {
+      toast.error('Gagal menyimpan')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   function recalc(dishes: Dish[]) {
     return {
@@ -187,6 +202,7 @@ async function saveMeal() {
     if (!result) return
     const dishes = result.dishes.map((d, i) => i === idx ? updated : d)
     setResult({ ...result, dishes, total: recalc(dishes) })
+    setSaved(false)
     setOpenDishIdx(null)
     toast.success('Menu diperbarui')
   }
@@ -195,12 +211,14 @@ async function saveMeal() {
     if (!result) return
     const dishes = result.dishes.filter((_, i) => i !== idx)
     setResult({ ...result, dishes, total: recalc(dishes) })
+    setSaved(false)
     toast.success('Menu dihapus')
   }
 
   function applyTotalEdit() {
     if (!result) return
     setResult({ ...result, total: { calories: editKcal, protein: editProt, carbs: editCarb, fat: editFat } })
+    setSaved(false)
     setShowEditTotal(false)
     toast.success('Total diperbarui')
   }
@@ -209,6 +227,7 @@ async function saveMeal() {
     if (!result || !newDish.name.trim()) return
     const dishes = [...result.dishes, newDish]
     setResult({ ...result, dishes, total: recalc(dishes) })
+    setSaved(false)
     setNewDish({ name: '', portion: '', calories: 0, protein: 0, carbs: 0, fat: 0 })
     setShowAddDish(false)
     toast.success('Menu ditambahkan')
@@ -232,16 +251,19 @@ async function saveMeal() {
     color: '#081520', fontWeight: 700, fontSize: 15, border: 'none',
     cursor: 'pointer', marginBottom: 8, transition: 'opacity .2s',
   }
+
   const btnGhost: React.CSSProperties = {
     width: '100%', padding: '12px 0', background: 'transparent',
     border: '1px solid var(--border)', borderRadius: 13,
     color: 'var(--text-muted)', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginBottom: 8,
   }
+
   const inp: React.CSSProperties = {
     width: '100%', background: S2, border: `1px solid ${BORDER}`,
     borderRadius: 10, padding: '10px 12px', color: 'var(--text)',
     fontSize: 14, outline: 'none', boxSizing: 'border-box',
   }
+
   const badge = (label: string, value: string, color: string) => (
     <div style={{ background: `${color}15`, border: `1px solid ${color}30`, borderRadius: 12, padding: '10px 14px', textAlign: 'center', flex: 1 }}>
       <div style={{ color, fontWeight: 700, fontSize: 18 }}>{value}</div>
@@ -256,7 +278,6 @@ async function saveMeal() {
       <input ref={galleryRef} type="file" accept="image/*" style={{ display: 'none' }}
         onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
 
-      {/* ── STEP: UPLOAD ── */}
       {step === 'upload' && (
         <div style={{ animation: 'slideUp .38s cubic-bezier(.22,1,.36,1) both' }}>
           <div style={{
@@ -281,7 +302,6 @@ async function saveMeal() {
         </div>
       )}
 
-      {/* ── STEP: PREVIEW ── */}
       {step === 'preview' && (
         <div>
           {imgPreview && (
@@ -316,23 +336,18 @@ async function saveMeal() {
         </div>
       )}
 
-      {/* ── STEP: RESULT ── */}
       {step === 'result' && result && (
         <div style={{ animation: 'slideUp .38s cubic-bezier(.22,1,.36,1) both' }}>
-        {/* ── STEP: RESULT ── */}
+          {imageDataUrl && (
+            <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
+              <img
+                src={imageDataUrl}
+                alt="Foto makanan"
+                style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }}
+              />
+            </div>
+          )}
 
-    {/* ✅ Tampilkan foto makanan */}
-    {imageDataUrl && (
-      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
-        <img
-          src={imageDataUrl}
-          alt="Foto makanan"
-          style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }}
-        />
-      </div>
-    )}
-
-          {/* Re-analyze panel */}
           {showReanalyze && (
             <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '14px 16px', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -363,7 +378,6 @@ async function saveMeal() {
             </div>
           )}
 
-          {/* Total nutrition card */}
           <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '14px 16px', marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.5px', textTransform: 'uppercase' }}>Total Kandungan Gizi</div>
@@ -386,7 +400,6 @@ async function saveMeal() {
               </div>
             </div>
 
-            {/* Badges */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               {badge('kkal', String(result.total.calories), '#F87171')}
               {badge('protein', `${result.total.protein.toFixed(1)}g`, 'var(--protein)')}
@@ -401,7 +414,6 @@ async function saveMeal() {
               </div>
             )}
 
-            {/* Edit total panel */}
             {showEditTotal && (
               <div style={{ marginTop: 12, padding: '12px 0 0', borderTop: `1px solid ${BORDER}` }}>
                 {([['Kalori', editKcal, setEditKcal, 'kkal'], ['Protein', editProt, setEditProt, 'g'], ['Karbo', editCarb, setEditCarb, 'g'], ['Lemak', editFat, setEditFat, 'g']] as any[]).map(([label, val, setter, unit]) => (
@@ -420,7 +432,6 @@ async function saveMeal() {
             )}
           </div>
 
-          {/* Per-dish list */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.5px', textTransform: 'uppercase' }}>
               Menu Terdeteksi ({result.dishes.length})
@@ -443,7 +454,6 @@ async function saveMeal() {
             ))}
           </div>
 
-          {/* Add dish panel */}
           {showAddDish && (
             <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '14px 16px', marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Tambah Menu Manual</div>
@@ -471,12 +481,10 @@ async function saveMeal() {
             </div>
           )}
 
-          {/* Disclaimer */}
           <div style={{ background: 'rgba(61,255,149,.05)', border: '1px solid rgba(61,255,149,.15)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 16 }}>
             ℹ️ <strong>Disclaimer:</strong> Hasil analisa foto ini sepenuhnya dihasilkan oleh AI dan dapat mengandung ketidaktepatan. Kami terus melakukan pengembangan untuk meningkatkan akurasi.
           </div>
 
-          {/* Actions */}
           {!saved ? (
             <>
               <button onClick={saveMeal} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
@@ -497,7 +505,6 @@ async function saveMeal() {
   )
 }
 
-// ── DishCard ─────────────────────────────────────────────────────────────────
 function DishCard({ dish, index, isOpen, onToggle, onUpdate, onRemove }: {
   dish: Dish; index: number
   isOpen: boolean
