@@ -51,12 +51,13 @@ export async function POST(req: NextRequest) {
 
   // Parse request
   const contentType = req.headers.get('content-type') || ''
-  let imageBase64 = '', mimeType = 'image/jpeg'
+  let imageBase64 = '', mimeType = 'image/jpeg', correction = ''
 
   if (contentType.includes('application/json')) {
     const body  = await req.json()
     imageBase64 = body.image || ''
     mimeType    = body.mimeType || 'image/jpeg'
+    correction  = body.correction || ''
   } else if (contentType.includes('multipart/form-data')) {
     const form  = await req.formData()
     const file  = form.get('image') as File
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
     const buf   = await file.arrayBuffer()
     imageBase64 = Buffer.from(buf).toString('base64')
     mimeType    = file.type || 'image/jpeg'
+    correction  = (form.get('correction') as string) || ''
   } else {
     return err('Content-Type tidak didukung')
   }
@@ -74,23 +76,8 @@ export async function POST(req: NextRequest) {
   const apiKey = await getCfg('anthropic_api_key') || process.env.ANTHROPIC_API_KEY
   if (!apiKey) return err('API key Anthropic belum dikonfigurasi', 503)
 
-  // Analyze with Claude
-  let analysis: any
-  try {
-    const client = new Anthropic({ apiKey })
-    const response = await client.messages.create({
-      model: 'claude-opus-4-5',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mimeType as any, data: imageBase64 },
-          },
-          {
-            type: 'text',
-            text: `Analisa gambar makanan ini dan berikan estimasi nutrisi dalam format JSON.
+  // Build prompt — use correction context if provided
+  const basePrompt = `Analisa gambar makanan ini dan berikan estimasi nutrisi dalam format JSON.
 Jika tidak ada makanan dalam gambar, kembalikan error.
 
 Format respons WAJIB (JSON saja, tanpa teks lain):
@@ -114,7 +101,32 @@ Format respons WAJIB (JSON saja, tanpa teks lain):
   "notes": "catatan singkat tentang nilai gizi",
   "healthScore": 7,
   "assessment": "penilaian singkat dalam 1-2 kalimat"
-}`,
+}`
+
+  const correctionPrompt = correction.trim()
+    ? `${basePrompt}
+
+KOREKSI DARI USER: "${correction.trim()}"
+Gunakan informasi koreksi di atas sebagai prioritas utama untuk menentukan nama menu, bahan, dan porsi yang benar. Perbarui seluruh daftar dishes, total nutrisi, notes, healthScore, dan assessment berdasarkan koreksi tersebut.`
+    : basePrompt
+
+  // Analyze with Claude
+  let analysis: any
+  try {
+    const client = new Anthropic({ apiKey })
+    const response = await client.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: mimeType as any, data: imageBase64 },
+          },
+          {
+            type: 'text',
+            text: correctionPrompt,
           },
         ],
       }],
