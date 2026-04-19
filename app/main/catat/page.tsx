@@ -80,6 +80,24 @@ export default function CatatPage() {
     })
   }
 
+  // Compress to small thumbnail for storing in DB (max 300px, quality 50%)
+  // Result is ~15-30KB base64, well within Vercel 4.5MB limit
+  function makeThumbnail(dataUrl: string): Promise<string> {
+    return new Promise(resolve => {
+      const img = new Image()
+      img.onload = () => {
+        const maxW = 300
+        const scale = img.width > maxW ? maxW / img.width : 1
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * scale)
+        canvas.height = Math.round(img.height * scale)
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.5))
+      }
+      img.src = dataUrl
+    })
+  }
+
   async function handleFile(file: File) {
     reset()
     const reader = new FileReader()
@@ -167,12 +185,15 @@ export default function CatatPage() {
     if (!result || saving) return
     setSaving(true)
     try {
+      // Compress to thumbnail before sending to avoid exceeding Vercel 4.5MB payload limit
+      const thumbnail = imageDataUrl ? await makeThumbnail(imageDataUrl) : null
+
       const res = await fetch('/api/history', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           analysis: result,
-          imageDataUrl,
+          imageDataUrl: thumbnail,
         }),
       })
       if (!res.ok) {
