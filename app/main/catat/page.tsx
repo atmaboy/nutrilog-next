@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 type Dish = {
@@ -25,6 +26,7 @@ const S2 = 'var(--surface2)'
 const BORDER = 'var(--border)'
 
 export default function CatatPage() {
+  const router = useRouter()
   const cameraRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
 
@@ -59,6 +61,12 @@ export default function CatatPage() {
     return { Authorization: `Bearer ${localStorage.getItem('nl_token') || ''}` }
   }
 
+  function handle401() {
+    localStorage.removeItem('nl_token')
+    localStorage.removeItem('nl_user')
+    router.replace('/login')
+  }
+
   async function compressImage(file: File): Promise<{ base64: string; mime: string }> {
     return new Promise(resolve => {
       const reader = new FileReader()
@@ -80,8 +88,6 @@ export default function CatatPage() {
     })
   }
 
-  // Compress to small thumbnail for storing in DB (max 300px, quality 50%)
-  // Result is ~15-30KB base64, well within Vercel 4.5MB limit
   function makeThumbnail(dataUrl: string): Promise<string> {
     return new Promise(resolve => {
       const img = new Image()
@@ -154,6 +160,8 @@ export default function CatatPage() {
       })
       const data = await res.json()
 
+      if (res.status === 401) { handle401(); return }
+
       if (res.status === 429) {
         setWarn(data.error || 'Batas analisa harian tercapai')
         setStep('preview')
@@ -185,17 +193,16 @@ export default function CatatPage() {
     if (!result || saving) return
     setSaving(true)
     try {
-      // Compress to thumbnail before sending to avoid exceeding Vercel 4.5MB payload limit
       const thumbnail = imageDataUrl ? await makeThumbnail(imageDataUrl) : null
 
       const res = await fetch('/api/history', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          analysis: result,
-          imageDataUrl: thumbnail,
-        }),
+        body: JSON.stringify({ analysis: result, imageDataUrl: thumbnail }),
       })
+
+      if (res.status === 401) { handle401(); return }
+
       if (!res.ok) {
         const data = await res.json()
         toast.error(data.error || 'Gagal menyimpan')
@@ -361,11 +368,7 @@ export default function CatatPage() {
         <div style={{ animation: 'slideUp .38s cubic-bezier(.22,1,.36,1) both' }}>
           {imageDataUrl && (
             <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
-              <img
-                src={imageDataUrl}
-                alt="Foto makanan"
-                style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }}
-              />
+              <img src={imageDataUrl} alt="Foto makanan" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />
             </div>
           )}
 
@@ -440,8 +443,7 @@ export default function CatatPage() {
                 {([['Kalori', editKcal, setEditKcal, 'kkal'], ['Protein', editProt, setEditProt, 'g'], ['Karbo', editCarb, setEditCarb, 'g'], ['Lemak', editFat, setEditFat, 'g']] as any[]).map(([label, val, setter, unit]) => (
                   <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <span style={{ width: 60, fontSize: 13, color: 'var(--text-muted)' }}>{label}</span>
-                    <input type="number" value={val} onChange={e => setter(parseFloat(e.target.value) || 0)}
-                      style={{ ...inp, flex: 1 }} />
+                    <input type="number" value={val} onChange={e => setter(parseFloat(e.target.value) || 0)} style={{ ...inp, flex: 1 }} />
                     <span style={{ width: 30, fontSize: 12, color: 'var(--text-muted)' }}>{unit}</span>
                   </div>
                 ))}

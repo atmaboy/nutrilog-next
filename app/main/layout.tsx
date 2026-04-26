@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 
@@ -18,24 +18,50 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [dayKcal, setDayKcal] = useState<number | null>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
+  const forceLogout = useCallback(() => {
+    localStorage.removeItem('nl_token')
+    localStorage.removeItem('nl_user')
+    router.replace('/login')
+  }, [router])
+
   useEffect(() => {
     const token = localStorage.getItem('nl_token')
     const u = localStorage.getItem('nl_user')
     if (!token || !u) { router.replace('/login'); return }
-    setUser(JSON.parse(u))
 
     const savedTheme = (localStorage.getItem('nl_theme') || 'dark') as 'dark' | 'light'
     setTheme(savedTheme)
-    // Gunakan html.dark — konsisten dengan globals.css & Tailwind class strategy
     if (savedTheme === 'dark') {
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
     }
 
-    checkMaintenance(token)
-    loadDayKcal(token)
+    // Validate token against server — if 401, force logout immediately
+    validateToken(token, u)
   }, [router])
+
+  async function validateToken(token: string, userStr: string) {
+    try {
+      const res = await fetch('/api/history?action=today', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      })
+      if (res.status === 401) {
+        forceLogout()
+        return
+      }
+      // Token valid — set user and load data
+      setUser(JSON.parse(userStr))
+      const data = await res.json()
+      setDayKcal(data.summary?.totalCalories ?? 0)
+      checkMaintenance(token)
+    } catch {
+      // Network error — still allow access, set user
+      setUser(JSON.parse(userStr))
+      checkMaintenance(token)
+    }
+  }
 
   async function checkMaintenance(token: string) {
     try {
@@ -50,31 +76,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           title: data.title || 'Aplikasi Sedang Dalam Pemeliharaan',
           description: data.description || 'Kami sedang melakukan peningkatan sistem. Silakan coba beberapa saat lagi.',
         }))
-        localStorage.removeItem('nl_token')
-        localStorage.removeItem('nl_user')
-        router.replace('/login')
+        forceLogout()
       }
     } catch {
       // fail-open
     }
   }
 
-  async function loadDayKcal(token: string) {
-    try {
-      const res = await fetch('/api/history?action=today', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!res.ok) return
-      const data = await res.json()
-      setDayKcal(data.summary?.totalCalories ?? 0)
-    } catch {}
-  }
-
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark'
     setTheme(next)
     localStorage.setItem('nl_theme', next)
-    // Pakai documentElement (html tag) agar .dark class konsisten dengan CSS vars
     if (next === 'dark') {
       document.documentElement.classList.add('dark')
     } else {
@@ -98,12 +110,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ message: reportMsg }),
       })
+      if (res.status === 401) { forceLogout(); return }
       if (res.ok) { setReportDone(true); setReportMsg('') }
     } finally {
       setReportSending(false)
     }
   }
 
+  // Still loading — validate token first before showing anything
   if (!user) return null
 
   const initial = user.username[0]?.toUpperCase() ?? 'U'
@@ -252,7 +266,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.2)',
               color: '#F87171', fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left',
             }}>
-              🚪 Keluar
+              🚶 Keluar
             </button>
           </div>
         </div>
