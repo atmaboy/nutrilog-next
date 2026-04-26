@@ -39,23 +39,23 @@ export default function CatatPage() {
   const [error, setError] = useState('')
   const [warn, setWarn] = useState('')
   const [result, setResult] = useState<AnalysisResult | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+
+  // ID entri riwayat yang tersimpan untuk sesi ini (dipakai saat koreksi → PATCH)
+  const [savedMealId, setSavedMealId] = useState<string | null>(null)
+  const [autoSaving, setAutoSaving] = useState(false)
 
   const [showReanalyze, setShowReanalyze] = useState(false)
   const [reanalyzeText, setReanalyzeText] = useState('')
   const [reanalyzing, setReanalyzing] = useState(false)
 
-  const [showEditTotal, setShowEditTotal] = useState(false)
-  const [editKcal, setEditKcal] = useState(0)
-  const [editProt, setEditProt] = useState(0)
-  const [editCarb, setEditCarb] = useState(0)
-  const [editFat, setEditFat] = useState(0)
+  // Full-edit mode
+  const [showFullEdit, setShowFullEdit] = useState(false)
+  const [editResult, setEditResult] = useState<AnalysisResult | null>(null)
 
   const [openDishIdx, setOpenDishIdx] = useState<number | null>(null)
 
   const [showAddDish, setShowAddDish] = useState(false)
-  const [newDish, setNewDish] = useState({ name: '', portion: '', calories: 0, protein: 0, carbs: 0, fat: 0 })
+  const [newDish, setNewDish] = useState<Dish>({ name: '', portion: '', calories: 0, protein: 0, carbs: 0, fat: 0 })
 
   function authHeaders() {
     return { Authorization: `Bearer ${localStorage.getItem('nl_token') || ''}` }
@@ -128,14 +128,54 @@ export default function CatatPage() {
     setResult(null)
     setError('')
     setWarn('')
-    setSaving(false)
-    setSaved(false)
+    setSavedMealId(null)
+    setAutoSaving(false)
     setShowReanalyze(false)
     setReanalyzeText('')
     setReanalyzing(false)
-    setShowEditTotal(false)
+    setShowFullEdit(false)
+    setEditResult(null)
     setShowAddDish(false)
     setOpenDishIdx(null)
+  }
+
+  // Auto-save entri baru (dipanggil setelah analisa pertama)
+  async function autoSaveNew(analysis: AnalysisResult, imgDataUrl: string) {
+    setAutoSaving(true)
+    try {
+      const thumbnail = imgDataUrl ? await makeThumbnail(imgDataUrl) : null
+      const res = await fetch('/api/history', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysis, imageDataUrl: thumbnail }),
+      })
+      if (res.status === 401) { handle401(); return }
+      if (!res.ok) { toast.error('Gagal menyimpan ke riwayat'); return }
+      const data = await res.json()
+      setSavedMealId(data.meal?.id ?? null)
+      toast.success('Tersimpan otomatis ke riwayat ✓')
+    } catch {
+      toast.error('Gagal menyimpan ke riwayat')
+    } finally {
+      setAutoSaving(false)
+    }
+  }
+
+  // Update entri yang sudah ada (dipanggil setelah koreksi)
+  async function updateSavedMeal(analysis: AnalysisResult) {
+    if (!savedMealId) return
+    try {
+      const res = await fetch(`/api/history?id=${savedMealId}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysis }),
+      })
+      if (res.status === 401) { handle401(); return }
+      if (!res.ok) { toast.error('Gagal memperbarui riwayat'); return }
+      toast.success('Riwayat diperbarui ✓')
+    } catch {
+      toast.error('Gagal memperbarui riwayat')
+    }
   }
 
   async function analyze(correction?: string) {
@@ -144,7 +184,6 @@ export default function CatatPage() {
     const isCorrection = !!correction?.trim()
     if (isCorrection) {
       setReanalyzing(true)
-      setSaved(false)
     } else {
       setLoading(true)
     }
@@ -170,59 +209,44 @@ export default function CatatPage() {
 
       if (!res.ok) {
         setError(data.error || 'Analisa gagal')
+        if (!isCorrection) setStep('preview')
         return
       }
 
-      setResult(data.analysis)
+      const analysis: AnalysisResult = data.analysis
+      setResult(analysis)
       setStep('result')
       setShowReanalyze(false)
       setReanalyzeText('')
-      setShowEditTotal(false)
+      setShowFullEdit(false)
+      setEditResult(null)
       setShowAddDish(false)
       setOpenDishIdx(null)
-      toast.success(isCorrection ? 'Hasil koreksi berhasil diperbarui' : 'Analisa selesai')
+
+      if (isCorrection) {
+        // Koreksi → update entri yang sudah ada
+        toast.success('Hasil koreksi diperbarui')
+        await updateSavedMeal(analysis)
+      } else {
+        // Analisa pertama → buat entri baru otomatis
+        toast.success('Analisa selesai')
+        await autoSaveNew(analysis, imageDataUrl)
+      }
     } catch {
       setError('Tidak dapat terhubung ke server')
+      if (!isCorrection) setStep('preview')
     } finally {
       setLoading(false)
       setReanalyzing(false)
     }
   }
 
-  async function saveMeal() {
-    if (!result || saving) return
-    setSaving(true)
-    try {
-      const thumbnail = imageDataUrl ? await makeThumbnail(imageDataUrl) : null
-
-      const res = await fetch('/api/history', {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analysis: result, imageDataUrl: thumbnail }),
-      })
-
-      if (res.status === 401) { handle401(); return }
-
-      if (!res.ok) {
-        const data = await res.json()
-        toast.error(data.error || 'Gagal menyimpan')
-        return
-      }
-      setSaved(true)
-      toast.success('Berhasil disimpan ke riwayat!')
-    } catch {
-      toast.error('Gagal menyimpan')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   function recalc(dishes: Dish[]) {
     return {
       calories: dishes.reduce((s, d) => s + d.calories, 0),
-      protein: dishes.reduce((s, d) => s + d.protein, 0),
-      carbs: dishes.reduce((s, d) => s + d.carbs, 0),
-      fat: dishes.reduce((s, d) => s + d.fat, 0),
+      protein:  dishes.reduce((s, d) => s + d.protein, 0),
+      carbs:    dishes.reduce((s, d) => s + d.carbs, 0),
+      fat:      dishes.reduce((s, d) => s + d.fat, 0),
     }
   }
 
@@ -230,7 +254,6 @@ export default function CatatPage() {
     if (!result) return
     const dishes = result.dishes.map((d, i) => i === idx ? updated : d)
     setResult({ ...result, dishes, total: recalc(dishes) })
-    setSaved(false)
     setOpenDishIdx(null)
     toast.success('Menu diperbarui')
   }
@@ -239,26 +262,34 @@ export default function CatatPage() {
     if (!result) return
     const dishes = result.dishes.filter((_, i) => i !== idx)
     setResult({ ...result, dishes, total: recalc(dishes) })
-    setSaved(false)
     toast.success('Menu dihapus')
-  }
-
-  function applyTotalEdit() {
-    if (!result) return
-    setResult({ ...result, total: { calories: editKcal, protein: editProt, carbs: editCarb, fat: editFat } })
-    setSaved(false)
-    setShowEditTotal(false)
-    toast.success('Total diperbarui')
   }
 
   function addDish() {
     if (!result || !newDish.name.trim()) return
     const dishes = [...result.dishes, newDish]
     setResult({ ...result, dishes, total: recalc(dishes) })
-    setSaved(false)
     setNewDish({ name: '', portion: '', calories: 0, protein: 0, carbs: 0, fat: 0 })
     setShowAddDish(false)
     toast.success('Menu ditambahkan')
+  }
+
+  // Buka full-edit mode — salin state result ke editResult
+  function openFullEdit() {
+    if (!result) return
+    setEditResult(JSON.parse(JSON.stringify(result)))
+    setShowFullEdit(true)
+  }
+
+  // Terapkan hasil full-edit ke result
+  function applyFullEdit() {
+    if (!editResult) return
+    const total = recalc(editResult.dishes)
+    const updated: AnalysisResult = { ...editResult, total }
+    setResult(updated)
+    setShowFullEdit(false)
+    setEditResult(null)
+    toast.success('Perubahan diterapkan')
   }
 
   function healthScore(score?: number) {
@@ -306,6 +337,7 @@ export default function CatatPage() {
       <input ref={galleryRef} type="file" accept="image/*" style={{ display: 'none' }}
         onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
 
+      {/* ── STEP: UPLOAD ── */}
       {step === 'upload' && (
         <div style={{ animation: 'slideUp .38s cubic-bezier(.22,1,.36,1) both' }}>
           <div style={{
@@ -330,6 +362,7 @@ export default function CatatPage() {
         </div>
       )}
 
+      {/* ── STEP: PREVIEW ── */}
       {step === 'preview' && (
         <div>
           {imgPreview && (
@@ -364,162 +397,243 @@ export default function CatatPage() {
         </div>
       )}
 
+      {/* ── STEP: RESULT ── */}
       {step === 'result' && result && (
         <div style={{ animation: 'slideUp .38s cubic-bezier(.22,1,.36,1) both' }}>
+
+          {/* Foto */}
           {imageDataUrl && (
             <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
               <img src={imageDataUrl} alt="Foto makanan" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />
+              {/* Badge auto-save status */}
+              <div style={{
+                position: 'absolute', bottom: 10, right: 10,
+                background: autoSaving ? 'rgba(8,21,32,.75)' : 'rgba(61,255,149,.15)',
+                border: `1px solid ${autoSaving ? 'transparent' : 'rgba(61,255,149,.35)'}`,
+                borderRadius: 8, padding: '4px 10px',
+                color: autoSaving ? 'var(--text-muted)' : 'var(--accent)',
+                fontSize: 11, fontWeight: 600,
+              }}>
+                {autoSaving ? '⏳ Menyimpan...' : '✓ Tersimpan'}
+              </div>
             </div>
           )}
 
-          {showReanalyze && (
-            <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '14px 16px', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <span style={{ fontSize: 18 }}>🔄</span>
+          {/* ── FULL EDIT MODE ── */}
+          {showFullEdit && editResult && (
+            <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '16px', marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Koreksi & Analisa Ulang</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tidak perlu foto ulang — AI akan analisa ulang dengan koreksimu</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>✏️ Mode Edit</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Edit semua menu, nutrisi & deskripsi</div>
                 </div>
+                <button onClick={() => { setShowFullEdit(false); setEditResult(null) }} style={{
+                  padding: '5px 12px', background: BORDER, borderRadius: 8,
+                  color: 'var(--text-muted)', fontSize: 12, border: 'none', cursor: 'pointer',
+                }}>✕ Batal</button>
               </div>
-              <textarea value={reanalyzeText} onChange={e => setReanalyzeText(e.target.value)} rows={3}
-                placeholder="Contoh: Ini nasi goreng kampung dengan telur, bukan nasi putih biasa..."
-                style={{ ...inp, resize: 'none', marginBottom: 10 }} />
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
-                💡 Jelaskan nama menu yang benar, bahan-bahan, atau apapun yang kurang tepat dari hasil analisa sebelumnya.
+
+              {/* Edit tiap dish */}
+              {editResult.dishes.map((dish, i) => (
+                <div key={i} style={{ background: 'var(--bg)', border: `1px solid ${BORDER}`, borderRadius: 12, padding: '12px', marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.5px' }}>Menu {i + 1}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ gridColumn: '1/-1' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Nama</div>
+                      <input style={inp} value={dish.name}
+                        onChange={e => {
+                          const dishes = editResult.dishes.map((d, j) => j === i ? { ...d, name: e.target.value } : d)
+                          setEditResult({ ...editResult, dishes })
+                        }} />
+                    </div>
+                    <div style={{ gridColumn: '1/-1' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Porsi</div>
+                      <input style={inp} value={dish.portion}
+                        onChange={e => {
+                          const dishes = editResult.dishes.map((d, j) => j === i ? { ...d, portion: e.target.value } : d)
+                          setEditResult({ ...editResult, dishes })
+                        }} />
+                    </div>
+                    {(['calories', 'protein', 'carbs', 'fat'] as const).map(key => (
+                      <div key={key}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>
+                          {key === 'calories' ? 'Kalori (kkal)' : key === 'protein' ? 'Protein (g)' : key === 'carbs' ? 'Karbo (g)' : 'Lemak (g)'}
+                        </div>
+                        <input type="number" style={inp} value={dish[key]}
+                          onChange={e => {
+                            const dishes = editResult.dishes.map((d, j) => j === i ? { ...d, [key]: parseFloat(e.target.value) || 0 } : d)
+                            setEditResult({ ...editResult, dishes })
+                          }} />
+                      </div>
+                    ))}
+                  </div>
+                  {editResult.dishes.length > 1 && (
+                    <button onClick={() => {
+                      const dishes = editResult.dishes.filter((_, j) => j !== i)
+                      setEditResult({ ...editResult, dishes })
+                    }} style={{
+                      marginTop: 10, padding: '6px 12px',
+                      background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.2)',
+                      borderRadius: 8, color: '#F87171', fontSize: 12, cursor: 'pointer',
+                    }}>🗑 Hapus menu ini</button>
+                  )}
+                </div>
+              ))}
+
+              {/* Tambah menu baru dalam edit mode */}
+              <button onClick={() => setEditResult({
+                ...editResult,
+                dishes: [...editResult.dishes, { name: '', portion: '', calories: 0, protein: 0, carbs: 0, fat: 0 }],
+              })} style={{
+                width: '100%', padding: '9px 0', marginBottom: 12,
+                background: 'var(--accent-dim)', border: '1px solid rgba(61,255,149,.25)',
+                borderRadius: 10, color: ACCENT, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+              }}>+ Tambah Menu</button>
+
+              {/* Edit notes & assessment */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Catatan Gizi</div>
+                <textarea rows={2} style={{ ...inp, resize: 'none' }} value={editResult.notes ?? ''}
+                  onChange={e => setEditResult({ ...editResult, notes: e.target.value })} />
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => analyze(reanalyzeText)} disabled={reanalyzing} style={{
-                  flex: 1, padding: '10px 0', background: ACCENT, color: '#081520',
-                  borderRadius: 11, fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer',
-                }}>
-                  {reanalyzing ? '⏳ Menganalisa...' : '🔄 Analisa Ulang'}
-                </button>
-                <button onClick={() => setShowReanalyze(false)} style={{
-                  padding: '10px 16px', background: BORDER, borderRadius: 11,
-                  color: 'var(--text-muted)', fontWeight: 600, fontSize: 13, border: 'none', cursor: 'pointer',
-                }}>Batal</button>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Penilaian AI</div>
+                <textarea rows={3} style={{ ...inp, resize: 'none' }} value={editResult.assessment ?? ''}
+                  onChange={e => setEditResult({ ...editResult, assessment: e.target.value })} />
               </div>
+
+              <button onClick={applyFullEdit} style={{ ...btnPrimary, marginBottom: 0 }}>✓ Terapkan Perubahan</button>
             </div>
           )}
 
-          <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '14px 16px', marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.5px', textTransform: 'uppercase' }}>Total Kandungan Gizi</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {!showReanalyze && (
-                  <button onClick={() => setShowReanalyze(true)} style={{
-                    padding: '5px 10px', background: 'var(--accent-dim)',
-                    border: '1px solid rgba(61,255,149,.25)', borderRadius: 8,
-                    color: ACCENT, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  }}>🔄 Koreksi</button>
+          {/* ── CARD NUTRISI ── */}
+          {!showFullEdit && (
+            <>
+              <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '14px 16px', marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.5px', textTransform: 'uppercase' }}>Total Kandungan Gizi</div>
+                  <button onClick={openFullEdit} style={{
+                    padding: '5px 10px', background: 'var(--border2)', borderRadius: 8,
+                    color: 'var(--text-sub)', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+                  }}>✏️ Edit</button>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  {badge('kkal', String(result.total.calories), '#F87171')}
+                  {badge('protein', `${result.total.protein.toFixed(1)}g`, 'var(--protein)')}
+                  {badge('karbo', `${result.total.carbs.toFixed(1)}g`, 'var(--carbs)')}
+                  {badge('lemak', `${result.total.fat.toFixed(1)}g`, 'var(--fat)')}
+                </div>
+
+                {result.healthScore && healthScore(result.healthScore)}
+                {result.assessment && (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, marginTop: 6 }}>
+                    {result.assessment}
+                  </div>
                 )}
-                <button onClick={() => {
-                  setEditKcal(result.total.calories); setEditProt(result.total.protein)
-                  setEditCarb(result.total.carbs); setEditFat(result.total.fat)
-                  setShowEditTotal(s => !s)
-                }} style={{
-                  padding: '5px 10px', background: 'var(--border2)', borderRadius: 8,
-                  color: 'var(--text-sub)', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
-                }}>✏️ Edit</button>
               </div>
-            </div>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              {badge('kkal', String(result.total.calories), '#F87171')}
-              {badge('protein', `${result.total.protein.toFixed(1)}g`, 'var(--protein)')}
-              {badge('karbo', `${result.total.carbs.toFixed(1)}g`, 'var(--carbs)')}
-              {badge('lemak', `${result.total.fat.toFixed(1)}g`, 'var(--fat)')}
-            </div>
-
-            {result.healthScore && healthScore(result.healthScore)}
-            {result.assessment && (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, marginTop: 6 }}>
-                {result.assessment}
+              {/* Daftar menu */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.5px', textTransform: 'uppercase' }}>
+                  Menu Terdeteksi ({result.dishes.length})
+                </div>
+                <button onClick={() => setShowAddDish(s => !s)} style={{
+                  padding: '5px 12px', background: 'var(--accent-dim)',
+                  border: '1px solid rgba(61,255,149,.25)', borderRadius: 8,
+                  color: ACCENT, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                }}>+ Tambah</button>
               </div>
-            )}
 
-            {showEditTotal && (
-              <div style={{ marginTop: 12, padding: '12px 0 0', borderTop: `1px solid ${BORDER}` }}>
-                {([['Kalori', editKcal, setEditKcal, 'kkal'], ['Protein', editProt, setEditProt, 'g'], ['Karbo', editCarb, setEditCarb, 'g'], ['Lemak', editFat, setEditFat, 'g']] as any[]).map(([label, val, setter, unit]) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ width: 60, fontSize: 13, color: 'var(--text-muted)' }}>{label}</span>
-                    <input type="number" value={val} onChange={e => setter(parseFloat(e.target.value) || 0)} style={{ ...inp, flex: 1 }} />
-                    <span style={{ width: 30, fontSize: 12, color: 'var(--text-muted)' }}>{unit}</span>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <button onClick={applyTotalEdit} style={{ flex: 1, padding: '9px 0', background: ACCENT, color: '#081520', borderRadius: 10, fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' }}>✓ Terapkan</button>
-                  <button onClick={() => setShowEditTotal(false)} style={{ padding: '9px 14px', background: BORDER, borderRadius: 10, color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}>Batal</button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.5px', textTransform: 'uppercase' }}>
-              Menu Terdeteksi ({result.dishes.length})
-            </div>
-            <button onClick={() => setShowAddDish(s => !s)} style={{
-              padding: '5px 12px', background: 'var(--accent-dim)',
-              border: '1px solid rgba(61,255,149,.25)', borderRadius: 8,
-              color: ACCENT, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-            }}>+ Tambah</button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
-            {result.dishes.map((dish, i) => (
-              <DishCard key={i} dish={dish} index={i}
-                isOpen={openDishIdx === i}
-                onToggle={() => setOpenDishIdx(openDishIdx === i ? null : i)}
-                onUpdate={updated => updateDish(i, updated)}
-                onRemove={() => removeDish(i)}
-              />
-            ))}
-          </div>
-
-          {showAddDish && (
-            <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '14px 16px', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Tambah Menu Manual</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div style={{ gridColumn: '1/-1' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Nama Makanan</div>
-                  <input style={inp} value={newDish.name} onChange={e => setNewDish(d => ({ ...d, name: e.target.value }))} placeholder="mis: Nasi Goreng" />
-                </div>
-                <div style={{ gridColumn: '1/-1' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Porsi</div>
-                  <input style={inp} value={newDish.portion} onChange={e => setNewDish(d => ({ ...d, portion: e.target.value }))} placeholder="1 piring" />
-                </div>
-                {([['Kalori', 'calories', 'kkal'], ['Protein (g)', 'protein', ''], ['Karbo (g)', 'carbs', ''], ['Lemak (g)', 'fat', '']] as const).map(([label, key]) => (
-                  <div key={key}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{label}</div>
-                    <input type="number" style={inp} value={newDish[key]}
-                      onChange={e => setNewDish(d => ({ ...d, [key]: parseFloat(e.target.value) || 0 }))} />
-                  </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+                {result.dishes.map((dish, i) => (
+                  <DishCard key={i} dish={dish} index={i}
+                    isOpen={openDishIdx === i}
+                    onToggle={() => setOpenDishIdx(openDishIdx === i ? null : i)}
+                    onUpdate={updated => updateDish(i, updated)}
+                    onRemove={() => removeDish(i)}
+                  />
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button onClick={addDish} style={{ flex: 1, padding: '10px 0', background: ACCENT, color: '#081520', borderRadius: 10, fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' }}>+ Tambahkan</button>
-                <button onClick={() => setShowAddDish(false)} style={{ padding: '10px 14px', background: BORDER, borderRadius: 10, color: 'var(--text-muted)', fontSize: 13, border: 'none', cursor: 'pointer' }}>Batal</button>
-              </div>
-            </div>
+
+              {showAddDish && (
+                <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '14px 16px', marginBottom: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Tambah Menu Manual</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ gridColumn: '1/-1' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Nama Makanan</div>
+                      <input style={inp} value={newDish.name} onChange={e => setNewDish(d => ({ ...d, name: e.target.value }))} placeholder="mis: Nasi Goreng" />
+                    </div>
+                    <div style={{ gridColumn: '1/-1' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Porsi</div>
+                      <input style={inp} value={newDish.portion} onChange={e => setNewDish(d => ({ ...d, portion: e.target.value }))} placeholder="1 piring" />
+                    </div>
+                    {(['calories', 'protein', 'carbs', 'fat'] as const).map(key => (
+                      <div key={key}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
+                          {key === 'calories' ? 'Kalori (kkal)' : key === 'protein' ? 'Protein (g)' : key === 'carbs' ? 'Karbo (g)' : 'Lemak (g)'}
+                        </div>
+                        <input type="number" style={inp} value={newDish[key]}
+                          onChange={e => setNewDish(d => ({ ...d, [key]: parseFloat(e.target.value) || 0 }))} />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button onClick={addDish} style={{ flex: 1, padding: '10px 0', background: ACCENT, color: '#081520', borderRadius: 10, fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer' }}>+ Tambahkan</button>
+                    <button onClick={() => setShowAddDish(false)} style={{ padding: '10px 14px', background: BORDER, borderRadius: 10, color: 'var(--text-muted)', fontSize: 13, border: 'none', cursor: 'pointer' }}>Batal</button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
+          {/* Disclaimer */}
           <div style={{ background: 'rgba(61,255,149,.05)', border: '1px solid rgba(61,255,149,.15)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 16 }}>
             ℹ️ <strong>Disclaimer:</strong> Hasil analisa foto ini sepenuhnya dihasilkan oleh AI dan dapat mengandung ketidaktepatan. Kami terus melakukan pengembangan untuk meningkatkan akurasi.
           </div>
 
-          {!saved ? (
-            <>
-              <button onClick={saveMeal} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.6 : 1 }}>
-                {saving ? '⏳ Menyimpan...' : '💾 Simpan ke Riwayat'}
-              </button>
+          {/* ── CTA BUTTONS ── */}
+          {!showFullEdit && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+              {/* Koreksi — expand/collapse */}
+              {showReanalyze ? (
+                <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 16, padding: '14px 16px', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <span style={{ fontSize: 18 }}>🔄</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Koreksi & Analisa Ulang</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tidak perlu foto ulang — AI akan analisa ulang dengan koreksimu</div>
+                    </div>
+                  </div>
+                  <textarea value={reanalyzeText} onChange={e => setReanalyzeText(e.target.value)} rows={3}
+                    placeholder="Contoh: Ini nasi goreng kampung dengan telur, bukan nasi putih biasa..."
+                    style={{ ...inp, resize: 'none', marginBottom: 10 }} />
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                    💡 Jelaskan nama menu yang benar, bahan-bahan, atau apapun yang kurang tepat dari hasil analisa sebelumnya.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => analyze(reanalyzeText)} disabled={reanalyzing || !reanalyzeText.trim()} style={{
+                      flex: 1, padding: '10px 0', background: ACCENT, color: '#081520',
+                      borderRadius: 11, fontWeight: 700, fontSize: 13, border: 'none',
+                      cursor: reanalyzing || !reanalyzeText.trim() ? 'not-allowed' : 'pointer',
+                      opacity: reanalyzing || !reanalyzeText.trim() ? 0.6 : 1,
+                    }}>
+                      {reanalyzing ? '⏳ Menganalisa...' : '🔄 Analisa Ulang'}
+                    </button>
+                    <button onClick={() => { setShowReanalyze(false); setReanalyzeText('') }} style={{
+                      padding: '10px 16px', background: BORDER, borderRadius: 11,
+                      color: 'var(--text-muted)', fontWeight: 600, fontSize: 13, border: 'none', cursor: 'pointer',
+                    }}>Batal</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowReanalyze(true)} style={btnGhost}>
+                  🔄 Koreksi Hasil Analisa
+                </button>
+              )}
+
               <button onClick={reset} style={btnGhost}>📷 Foto Makanan Lain</button>
-            </>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '12px 0 8px' }}>
-              <div style={{ fontSize: 28, marginBottom: 6 }}>✅</div>
-              <div style={{ fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>Tersimpan!</div>
-              <button onClick={reset} style={btnGhost}>📷 Catat Makanan Lain</button>
             </div>
           )}
         </div>
@@ -558,13 +672,17 @@ function DishCard({ dish, index, isOpen, onToggle, onUpdate, onRemove }: {
       {isOpen && (
         <div style={{ borderTop: '1px solid var(--border)', padding: '12px 14px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-            {([['Nama', 'name', 'text'], ['Porsi', 'portion', 'text'], ['Kalori', 'calories', 'number'], ['Protein (g)', 'protein', 'number'], ['Karbo (g)', 'carbs', 'number'], ['Lemak (g)', 'fat', 'number']] as const).map(([label, key, type]) => (
-              <div key={key} style={key === 'name' || key === 'portion' ? { gridColumn: '1/-1' } : {}}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
-                <input type={type} value={local[key]} style={inp}
-                  onChange={e => setLocal(d => ({ ...d, [key]: type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value }))} />
-              </div>
-            ))}
+            {(['name', 'portion', 'calories', 'protein', 'carbs', 'fat'] as const).map(key => {
+              const label = key === 'name' ? 'Nama' : key === 'portion' ? 'Porsi' : key === 'calories' ? 'Kalori' : key === 'protein' ? 'Protein (g)' : key === 'carbs' ? 'Karbo (g)' : 'Lemak (g)'
+              const type = (key === 'name' || key === 'portion') ? 'text' : 'number'
+              return (
+                <div key={key} style={key === 'name' || key === 'portion' ? { gridColumn: '1/-1' } : {}}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
+                  <input type={type} value={local[key]} style={inp}
+                    onChange={e => setLocal(d => ({ ...d, [key]: type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value }))} />
+                </div>
+              )
+            })}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => onUpdate(local)} style={{ flex: 1, padding: '8px 0', background: 'var(--accent)', color: '#081520', borderRadius: 9, fontWeight: 700, fontSize: 12, border: 'none', cursor: 'pointer' }}>✓ Simpan</button>
