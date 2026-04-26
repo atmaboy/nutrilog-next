@@ -76,11 +76,16 @@ export async function POST(req: NextRequest) {
   const apiKey = await getCfg('anthropic_api_key') || process.env.ANTHROPIC_API_KEY
   if (!apiKey) return err('API key Anthropic belum dikonfigurasi', 503)
 
-  // Build prompt — use correction context if provided
-  const basePrompt = `Analisa gambar makanan ini dan berikan estimasi nutrisi dalam format JSON.
-Jika tidak ada makanan dalam gambar, kembalikan error.
+  // Build prompt — strict food-only validation + correction context
+  const basePrompt = `Kamu adalah analis nutrisi makanan. Tugasmu HANYA menganalisa gambar yang berisi makanan atau minuman.
 
-Format respons WAJIB (JSON saja, tanpa teks lain):
+LANGKAH PERTAMA — validasi gambar:
+- Jika gambar TIDAK mengandung makanan atau minuman sama sekali (misalnya: pemandangan, orang, hewan, benda, teks, selfie, dll), kembalikan TEPAT JSON berikut tanpa teks lain:
+  {"error": "non_food", "message": "Gambar tidak mengandung makanan atau minuman. Silakan foto makananmu."}
+
+- Jika gambar MENGANDUNG makanan atau minuman, lanjutkan ke analisa nutrisi.
+
+LANGKAH KEDUA — jika ada makanan, kembalikan TEPAT format JSON berikut tanpa teks lain:
 {
   "dishes": [
     {
@@ -136,12 +141,42 @@ Gunakan informasi koreksi di atas sebagai prioritas utama untuk menentukan nama 
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return err('Gagal memparse respons AI')
     analysis = JSON.parse(jsonMatch[0])
+
+    // Handle non-food rejection from AI
+    if (analysis.error === 'non_food') {
+      return err(analysis.message || 'Gambar tidak mengandung makanan. Silakan foto makananmu.', 422)
+    }
+
   } catch (e: any) {
-    if (e.status === 401) return err('API key Anthropic tidak valid', 503)
-    return err(`Analisa gagal: ${e.message}`, 500)
+    // Anthropic API error — parse structured error if available
+    const body = e?.error ?? e?.response?.error ?? null
+
+    // Overloaded — Claude sedang sibuk, minta retry
+    if (e?.status === 529 || body?.type === 'overloaded_error') {
+      return err('Server AI sedang sibuk. Tunggu beberapa detik lalu coba lagi.', 503)
+    }
+
+    // Rate limited by Anthropic
+    if (e?.status === 429) {
+      return err('Batas permintaan AI tercapai. Coba lagi dalam beberapa menit.', 429)
+    }
+
+    // Invalid API key
+    if (e?.status === 401) {
+      return err('API key Anthropic tidak valid. Hubungi admin.', 503)
+    }
+
+    // Timeout
+    if (e?.code === 'ETIMEDOUT' || e?.code === 'ECONNRESET' || e?.name === 'TimeoutError') {
+      return err('Koneksi ke AI timeout. Coba lagi.', 503)
+    }
+
+    // Fallback — log full error server-side, tampilkan pesan ramah ke user
+    console.error('[analyze] Anthropic error:', e)
+    return err('Analisa gagal. Coba lagi beberapa saat.', 500)
   }
 
-  // Increment daily usage
+  // Increment daily usage — hanya jika analisa berhasil
   await db.insert(dailyUsage)
     .values({ userId: payload.userId, date: today, count: 1 })
     .onConflictDoUpdate({
