@@ -1,0 +1,19 @@
+{
+  "name": "Gizku",
+  "short_name": "Gizku",
+  "description": "Catat makanan harian dan analisa nutrisi dengan AI.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F9FAFB",
+  "theme_color": "#F9FAFB",
+  "lang": "id",
+  "orientation": "portrait",
+  "categories": ["health", "food"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}
