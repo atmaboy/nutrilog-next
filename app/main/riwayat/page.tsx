@@ -49,7 +49,6 @@ const C = {
   purple: '#9B8EC4',
 }
 
-// ── Consistent icon set ─────────────────────────────────
 const IconFire = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
     <path d="M12 2C12 2 7 8 7 13a5 5 0 0 0 10 0c0-3-2-6-2-6s-1 3-3 3c-1 0-2-1-2-2 0-2 2-6 2-8z" fill="#FF8A65"/>
@@ -106,7 +105,6 @@ const IconSalad = () => (
     <path d="M9 14h6"/>
   </svg>
 )
-// ────────────────────────────────────────────────────────
 
 function SkeletonBlock({ height, radius = 12, width = '100%' }: { height: number; radius?: number; width?: string }) {
   return (
@@ -237,7 +235,6 @@ export default function RiwayatPage() {
 
   const isFiltering = filterDate !== ''
 
-  // Nutrisi icon → warna konsisten untuk summary card & modal detail
   const nutriStats = (kcal: number | string, p: string, k: string, l: string) => [
     { icon: <IconFire />, val: String(kcal), label: 'Kalori', valColor: '#FF8A65' },
     { icon: <IconDumbbell />, val: typeof p === 'string' ? p : `${parseFloat(p).toFixed(1)}g`, label: 'Protein', valColor: '#2ECC71' },
@@ -246,7 +243,7 @@ export default function RiwayatPage() {
   ]
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ fontFamily: "var(--font-inter), sans-serif" }}>
       <style>{`
         @keyframes shimmer {
           0%   { background-position: 200% 0 }
@@ -269,13 +266,15 @@ export default function RiwayatPage() {
         }
       `}</style>
 
-      {/* ── DATE FILTER BAR */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <div style={{ position: 'relative', flex: 1 }}>
+      {/* ── DATE FILTER BAR — 2-row layout to prevent overflow on mobile */}
+      <div style={{ marginBottom: 16 }}>
+        {/* Row 1: full-width date input */}
+        <div style={{ position: 'relative' }}>
           <span style={{
             position: 'absolute', left: 10, top: '50%',
             transform: 'translateY(-50%)', pointerEvents: 'none',
-            display: 'flex', alignItems: 'center', color: filterDate ? C.green : C.muted,
+            display: 'flex', alignItems: 'center',
+            color: isFiltering ? C.green : C.muted,
           }}>
             <IconCalendar />
           </span>
@@ -286,42 +285,58 @@ export default function RiwayatPage() {
             onChange={handleDateChange}
             style={{
               width: '100%',
-              padding: '9px 10px 9px 30px',
+              padding: '9px 12px 9px 30px',
               borderRadius: 12,
-              border: `1.5px solid ${filterDate ? C.summaryBorder : C.border}`,
-              background: filterDate ? C.summaryBg : C.white,
-              color: filterDate ? C.text : C.muted,
+              border: `1.5px solid ${isFiltering ? C.summaryBorder : C.border}`,
+              background: isFiltering ? C.summaryBg : C.white,
+              color: isFiltering ? C.text : C.muted,
               fontSize: 13,
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: 'var(--font-inter), sans-serif',
               outline: 'none',
               cursor: 'pointer',
               transition: 'border-color .15s, background .15s',
+              boxSizing: 'border-box',
             }}
           />
         </div>
-        {filterDate && (
-          <button
-            onClick={handleResetFilter}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '9px 12px',
-              borderRadius: 12,
-              border: `1.5px solid ${C.border}`,
-              background: C.white,
-              color: C.muted,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              flexShrink: 0,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-            Reset
-          </button>
+
+        {/* Row 2: active filter pill + reset — only shown when filter is active */}
+        {isFiltering && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: 8,
+            padding: '6px 10px',
+            background: C.summaryBg,
+            border: `1px solid ${C.summaryBorder}`,
+            borderRadius: 10,
+          }}>
+            <span style={{ fontSize: 12, color: C.summaryPillText, fontWeight: 500 }}>
+              📅 {fmtDateStr(filterDate)}
+            </span>
+            <button
+              onClick={handleResetFilter}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '4px 10px',
+                borderRadius: 8,
+                border: `1px solid ${C.summaryBorder}`,
+                background: C.white,
+                color: C.muted,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+              Reset
+            </button>
+          </div>
         )}
       </div>
 
@@ -573,7 +588,6 @@ export default function RiwayatPage() {
                 </div>
               )}
 
-              {/* Detail nutrisi — warna sama persis dengan summary card */}
               <div style={{
                 display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16,
                 background: C.summaryBg,
