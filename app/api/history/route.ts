@@ -4,7 +4,7 @@ import { meals, dailyUsage } from '@/drizzle/schema'
 import { verifyToken, extractToken } from '@/lib/auth'
 import { getGlobalLimit } from '@/lib/admin'
 import { ok, err, setCors, todayISO } from '@/lib/utils'
-import { eq, and, desc, count } from 'drizzle-orm'
+import { eq, and, desc, count, gte, lte } from 'drizzle-orm'
 
 export async function OPTIONS() {
   const h = new Headers(); setCors(h)
@@ -27,19 +27,31 @@ export async function GET(req: NextRequest) {
 
   const action = req.nextUrl.searchParams.get('action') || 'list'
 
-  // LIST meals with pagination
+  // LIST meals with pagination + optional date filter
   if (action === 'list') {
     const page    = parseInt(req.nextUrl.searchParams.get('page') || '1')
     const perPage = parseInt(req.nextUrl.searchParams.get('per_page') || '10')
     const offset  = (page - 1) * perPage
+    const dateParam = req.nextUrl.searchParams.get('date') // format: YYYY-MM-DD
+
+    // Build where conditions
+    const conditions = [eq(meals.userId, user.userId)]
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      const dayStart = new Date(`${dateParam}T00:00:00.000Z`)
+      const dayEnd   = new Date(`${dateParam}T23:59:59.999Z`)
+      conditions.push(gte(meals.loggedAt, dayStart))
+      conditions.push(lte(meals.loggedAt, dayEnd))
+    }
+
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions)
 
     const list = await db.select().from(meals)
-      .where(eq(meals.userId, user.userId))
+      .where(whereClause)
       .orderBy(desc(meals.loggedAt))
       .limit(perPage)
       .offset(offset)
 
-    const [{ c }] = await db.select({ c: count() }).from(meals).where(eq(meals.userId, user.userId))
+    const [{ c }] = await db.select({ c: count() }).from(meals).where(whereClause)
 
     return ok({ meals: list, total: c, page, perPage, totalPages: Math.ceil(c / perPage) })
   }
@@ -131,7 +143,7 @@ export async function POST(req: NextRequest) {
   return ok({ meal })
 }
 
-// PATCH — update existing meal entry (digunakan saat koreksi/re-analisa)
+// PATCH — update existing meal entry
 export async function PATCH(req: NextRequest) {
   const user = await authUser(req)
   if (!user) return err('Token tidak valid', 401)
@@ -143,7 +155,6 @@ export async function PATCH(req: NextRequest) {
   const { analysis } = body
   if (!analysis) return err('Data analisis diperlukan')
 
-  // Pastikan meal milik user yang bersangkutan
   const [existing] = await db.select().from(meals)
     .where(and(eq(meals.id, id), eq(meals.userId, user.userId))).limit(1)
   if (!existing) return err('Data tidak ditemukan', 404)
