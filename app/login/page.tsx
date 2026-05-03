@@ -273,7 +273,7 @@ export default function LoginPage() {
               border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.6 : 1, transition: 'opacity .2s',
             }}>
-              {loading ? '⏳ Memproses...' : tab === 'login' ? '🚀 Masuk' : '✨ Daftar'}
+              {loading ? '⏳ Memproses...' : tab === 'login' ? 'Masuk' : 'Daftar'}
             </button>
           </form>
 

@@ -153,6 +153,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     orangeDim: '#FEF3C7',
   }
 
+  // SVG icons — consistent with backoffice sidebar
+  const IconReport = (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  )
+
+  const IconLogout = (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+      <polyline points="16 17 21 12 16 7"/>
+      <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+  )
+
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -282,12 +297,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '8px 12px', color: '#15803D', fontSize: 13, fontWeight: 500, marginBottom: 12 }}>✅ Email berhasil disimpan</div>
             )}
 
-            <button onClick={() => { setShowUserMenu(false); setShowEmailForm(false); setShowReport(true); setReportDone(false) }} style={{ width: '100%', padding: '13px 16px', borderRadius: 13, marginBottom: 8, background: '#F9FAFB', border: `1px solid ${C.border}`, color: C.text, fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left' }}>
-              🚩 Kirim Laporan / Masukan
+            <button
+              onClick={() => { setShowUserMenu(false); setShowEmailForm(false); setShowReport(true); setReportDone(false) }}
+              style={{ width: '100%', padding: '13px 16px', borderRadius: 13, marginBottom: 8, background: '#F9FAFB', border: `1px solid ${C.border}`, color: C.text, fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10 }}
+            >
+              <span style={{ color: C.muted, display: 'flex', alignItems: 'center' }}>{IconReport}</span>
+              Kirim Laporan / Masukan
             </button>
 
-            <button onClick={logout} style={{ width: '100%', padding: '13px 16px', borderRadius: 13, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', color: C.red, fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left' }}>
-              🚶 Keluar
+            <button
+              onClick={logout}
+              style={{ width: '100%', padding: '13px 16px', borderRadius: 13, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', color: C.red, fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10 }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center' }}>{IconLogout}</span>
+              Keluar
             </button>
           </div>
         </div>
@@ -298,7 +321,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div onClick={() => setShowReport(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#FFFFFF', borderRadius: '22px 22px 0 0', width: '100%', maxWidth: 480, padding: '20px 20px calc(24px + env(safe-area-inset-bottom, 0px))', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 -4px 24px rgba(0,0,0,.08)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: C.text, fontFamily: "'Montserrat', sans-serif" }}>🚩 Kirim Laporan</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: C.text, fontFamily: "'Montserrat', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: C.muted, display: 'flex', alignItems: 'center' }}>{IconReport}</span>
+                Kirim Laporan
+              </div>
               <button onClick={() => setShowReport(false)} style={{ background: '#F9FAFB', border: `1px solid ${C.border}`, borderRadius: 9, padding: '6px 12px', color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✕ Tutup</button>
             </div>
 
@@ -319,7 +345,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 />
                 <div style={{ textAlign: 'right', color: C.muted, fontSize: 11, marginBottom: 12 }}>{reportMsg.length}/2000</div>
                 <button onClick={submitReport} disabled={reportSending || !reportMsg.trim()} style={{ width: '100%', padding: 14, borderRadius: 13, background: C.green, color: '#FFFFFF', fontWeight: 700, fontSize: 15, border: 'none', cursor: reportSending ? 'not-allowed' : 'pointer', opacity: reportSending || !reportMsg.trim() ? 0.6 : 1, fontFamily: "'Inter', sans-serif" }}>
-                  {reportSending ? '⏳ Mengirim...' : '📤 Kirim Laporan'}
+                  {reportSending ? '⏳ Mengirim...' : 'Kirim Laporan'}
                 </button>
               </>
             )}
