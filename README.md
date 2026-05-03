@@ -1,4 +1,4 @@
-# 🥗 NutriLog
+# 🥗 Gizku
 
 > Aplikasi pelacak nutrisi makanan berbasis AI — analisa foto makananmu dan catat asupan harian dengan mudah.
 
@@ -7,12 +7,14 @@
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?logo=vercel)](https://vercel.com)
 [![License](https://img.shields.io/badge/license-Private-red)](#)
 
+> ⚠️ **Catatan Rebrand:** Aplikasi ini sebelumnya bernama **NutriLog**. Per Mei 2026, nama resmi telah berganti menjadi **Gizku**. Seluruh referensi `NutriLog` dalam kode dan dokumentasi ini merujuk pada versi lama.
+
 ---
 
 ## ✨ Fitur Utama
 
 - 📷 **Analisa foto makanan** — upload foto atau ambil dari kamera, AI (Claude) akan mendeteksi nama makanan beserta kandungan kalori, protein, karbohidrat, dan lemak
-- 📊 **Riwayat & statistik** — lihat rekap harian/mingguan beserta grafik tren nutrisi
+- 📊 **Riwayat & statistik** — lihat rekap harian/mingguan beserta ringkasan nutrisi per hari
 - 🔐 **Autentikasi** — sistem login/register dengan JWT, tanpa dependency pihak ketiga
 - 🛠️ **Admin dashboard** — kelola user, limit harian, maintenance mode, laporan masukan
 - 🔧 **Maintenance mode** — admin bisa mengaktifkan mode pemeliharaan; user aktif otomatis di-logout dan melihat pesan pemeliharaan di halaman login
@@ -31,14 +33,14 @@ nutrilog-next/
 │   ├── globals.css               # CSS variables (dark/light theme tokens)
 │   │
 │   ├── login/
-│   │   └── page.tsx              # Halaman login & register; tampilkan banner maintenance
+│   │   └── page.tsx              # Halaman login & register; tampilkan banner maintenance + BrandAnnouncement
 │   │
 │   ├── main/
 │   │   ├── layout.tsx            # Layout aplikasi utama (header, nav tab, auto-logout maintenance)
 │   │   ├── catat/
-│   │   │   └── page.tsx          # Halaman catat makan — upload foto & hasil analisa AI
+│   │   │   └── page.tsx          # Halaman catat makan — upload foto & hasil analisa AI + BrandAnnouncement
 │   │   └── riwayat/
-│   │       └── page.tsx          # Halaman riwayat — daftar meal & statistik nutrisi
+│   │       └── page.tsx          # Halaman riwayat — daftar meal & ringkasan nutrisi harian
 │   │
 │   ├── admin/
 │   │   └── page.tsx              # Dashboard admin — manajemen user, config, laporan
@@ -65,6 +67,7 @@ nutrilog-next/
 │               └── route.ts      # POST migrasi data dari Supabase KV → PostgreSQL
 │
 ├── components/                   # Shared React components
+│   └── BrandAnnouncement.tsx     # Widget notifikasi rebrand NutriLog → Gizku (dismissible)
 │
 ├── drizzle/
 │   └── schema.ts                 # Drizzle ORM schema — definisi tabel PostgreSQL
@@ -422,7 +425,7 @@ Cek status maintenance mode. Endpoint ini **tidak memerlukan autentikasi**.
   "ok": true,
   "data": {
     "enabled": false,
-    "title": "NutriLog sedang dalam perbaikan",
+    "title": "Gizku sedang dalam perbaikan",
     "description": "Kami sedang melakukan peningkatan sistem."
   }
 }
@@ -633,7 +636,13 @@ vercel login
 vercel --prod
 ```
 
-### 4. Jalankan Migrasi Data (Opsional)
+### 4. Custom Domain
+
+Setelah deploy, tambahkan custom domain di **Vercel Dashboard → Project → Settings → Domains**.
+
+> ⚠️ **Deployment Protection:** Pastikan **Settings → Deployment Protection** di-set ke `Disabled` agar user eksternal bisa mengakses aplikasi tanpa autentikasi Vercel. Jika hanya untuk internal tim, biarkan aktif.
+
+### 5. Jalankan Migrasi Data (Opsional)
 
 Jika kamu memiliki data lama di Supabase KV Store (`kv_store`), jalankan endpoint migrasi:
 
@@ -642,7 +651,7 @@ curl -X POST https://<your-domain>/api/admin/migrate \
   -H "Authorization: Bearer <admin_token>"
 ```
 
-### 5. Verifikasi Analytics
+### 6. Verifikasi Analytics
 
 Setelah deploy, buka Vercel Dashboard → tab **Analytics** untuk melihat page views dan Web Vitals secara real-time.
 
@@ -669,6 +678,25 @@ npm run lint
 
 ## 📋 Changelog
 
+### v1.4.0 — 2026-05-03
+
+#### 🎨 Rebrand: NutriLog → Gizku
+- **Nama aplikasi resmi berganti** dari NutriLog menjadi **Gizku** — seluruh UI, metadata, dan dokumentasi diperbarui
+- **Custom domain** — tidak lagi menggunakan subdomain `vercel.app`; aplikasi kini berjalan di domain sendiri
+- **Fix Vercel 403 Forbidden** — Deployment Protection dinonaktifkan agar user eksternal dapat mengakses aplikasi; solusi jangka panjang dengan migrasi ke custom domain
+
+#### 🔔 Brand Announcement Widget
+- Komponen baru `components/BrandAnnouncement.tsx` — notifikasi rebrand yang muncul di halaman **Login** dan **Catat Makanan**
+- Background oranye on-brand dengan animasi slide-down
+- **Dismissible** — setelah ditutup, disimpan ke `localStorage` (`gizku_brand_notice_dismissed`) sehingga tidak muncul lagi di kunjungan berikutnya
+
+#### 🗓️ UI Riwayat — Kartu Ringkasan Harian
+- **Pembeda visual** antara kartu ringkasan harian (summary) dan kartu item makan (meal list)
+- Summary card kini menggunakan background **amber** (`#FFF7ED`) dengan border oranye (`#FED7AA`) dan label pill **"Total Hari Ini"**
+- Meal card tetap putih bersih — hierarki visual parent/child kini lebih jelas
+
+---
+
 ### v1.3.0 — 2026-04-26
 - 🛡️ **Validasi gambar non-makanan** — AI menolak foto yang bukan makanan/minuman dengan pesan `422 Unprocessable Entity` yang ramah; kuota harian tidak terpotong
 - ⚡ **Error handling AI** — `overloaded_error` (529), rate limit (429), invalid key (401), dan timeout kini menampilkan pesan user-friendly alih-alih raw JSON error
@@ -687,7 +715,7 @@ npm run lint
 - 🚫 **Strip imageData** — base64 image tidak disimpan ke `rawAnalysis` saat migrasi untuk efisiensi storage
 
 ### v1.0.0 — 2026-04-10
-- 🎉 **Initial release**
+- 🎉 **Initial release** sebagai NutriLog
 - 📷 Analisa foto makanan via Anthropic Claude Vision
 - 📊 Riwayat & statistik harian
 - 🔐 Autentikasi JWT (login/register)
@@ -708,7 +736,7 @@ npm run lint
 | Auth | JWT (jose) — custom, tanpa NextAuth |
 | AI | Anthropic Claude (Vision) |
 | Analytics | Vercel Analytics |
-| Deploy | Vercel |
+| Deploy | Vercel + Custom Domain |
 
 ---
 
