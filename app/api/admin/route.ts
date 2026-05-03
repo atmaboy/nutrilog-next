@@ -173,9 +173,49 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function DELETE(req: NextRequest) {
+  try {
+    const action = req.nextUrl.searchParams.get('action')
+
+    // DELETE MEAL
+    if (action === 'delete_meal') {
+      const { id } = await req.json()
+      if (!id) return err('meal id diperlukan')
+      await db.delete(meals).where(eq(meals.id, id))
+      return ok({ message: 'Riwayat analisa dihapus' })
+    }
+
+    return err('Action tidak dikenal')
+  } catch (e) {
+    console.error('[admin DELETE]', e)
+    return jsonErr('Internal server error')
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const action = req.nextUrl.searchParams.get('action')
+
+    // USER MEALS HISTORY
+    if (action === 'user_meals') {
+      const userId = req.nextUrl.searchParams.get('user_id')
+      if (!userId) return err('user_id diperlukan')
+      const userMeals = await db.select({
+        id: meals.id,
+        dishNames: meals.dishNames,
+        totalCalories: meals.totalCalories,
+        totalProtein: meals.totalProtein,
+        totalCarbs: meals.totalCarbs,
+        totalFat: meals.totalFat,
+        imageUrl: meals.imageUrl,
+        rawAnalysis: meals.rawAnalysis,
+        loggedAt: meals.loggedAt,
+      })
+        .from(meals)
+        .where(eq(meals.userId, userId))
+        .orderBy(desc(meals.loggedAt))
+      return ok({ meals: userMeals })
+    }
 
     if (action === 'users') {
       const allUsers = await db.select({
