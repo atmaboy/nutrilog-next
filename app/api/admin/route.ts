@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
-import { users, meals, reports, dailyUsage, maintenanceConfig } from '@/drizzle/schema'
+import { users, meals, reports, maintenanceConfig } from '@/drizzle/schema'
 import { verifyAdminPwd, setAdminPwd, getCfg, setCfg, getGlobalLimit, getMaintenance } from '@/lib/admin'
 import { signAdminToken } from '@/lib/auth'
 import { ok, err, setCors } from '@/lib/utils'
 import { invalidateMaintenanceCache } from '@/lib/maintenance'
-import { eq, desc, count, sum } from 'drizzle-orm'
+import { eq, desc, count } from 'drizzle-orm'
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
@@ -105,13 +105,14 @@ export async function POST(req: NextRequest) {
       if (!username || !password) return err('Username dan password diperlukan')
       if (password.length < 6) return err('Password minimal 6 karakter')
 
-      let trimmedEmail: string | undefined
-      if (email) {
-        trimmedEmail = email.trim().toLowerCase()
+      let resolvedEmail: string | null = null
+      if (email && typeof email === 'string' && email.trim() !== '') {
+        const trimmedEmail = email.trim().toLowerCase()
         if (!isValidEmail(trimmedEmail)) return err('Format email tidak valid')
         const [existingEmail] = await db.select({ id: users.id })
           .from(users).where(eq(users.email, trimmedEmail)).limit(1)
         if (existingEmail) return err('Email sudah digunakan', 409)
+        resolvedEmail = trimmedEmail
       }
 
       const { hashPassword } = await import('@/lib/auth')
@@ -122,7 +123,7 @@ export async function POST(req: NextRequest) {
             username: username.toLowerCase().trim(),
             passwordHash: hash,
             dailyLimit: dailyLimit || null,
-            email: trimmedEmail ?? null,
+            email: resolvedEmail,
           })
           .returning({ id: users.id, username: users.username })
         return ok({ user })
@@ -144,7 +145,7 @@ export async function POST(req: NextRequest) {
         if (email === '' || email === null) {
           updateData.email = null
         } else {
-          const trimmedEmail = email.trim().toLowerCase()
+          const trimmedEmail = String(email).trim().toLowerCase()
           if (!isValidEmail(trimmedEmail)) return err('Format email tidak valid')
           const [existingEmail] = await db.select({ id: users.id })
             .from(users).where(eq(users.email, trimmedEmail)).limit(1)
@@ -189,8 +190,8 @@ export async function GET(req: NextRequest) {
     }
 
     if (action === 'stats') {
-      const [userCount]  = await db.select({ total: count() }).from(users)
-      const [mealCount]  = await db.select({ total: count() }).from(meals)
+      const [userCount]   = await db.select({ total: count() }).from(users)
+      const [mealCount]   = await db.select({ total: count() }).from(meals)
       const [reportCount] = await db.select({ total: count() }).from(reports)
       return ok({
         users: userCount.total,
