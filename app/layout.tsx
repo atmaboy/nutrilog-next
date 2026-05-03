@@ -7,13 +7,13 @@ import { Analytics } from '@vercel/analytics/next'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'NutriLog',
+  title: 'Gizku',
   description: 'Analisa nutrisi makanan dengan AI',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
-    title: 'NutriLog',
+    statusBarStyle: 'default',
+    title: 'Gizku',
   },
 }
 
@@ -22,28 +22,17 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
-  themeColor: '#081520',
+  themeColor: '#F9FAFB',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="id" suppressHydrationWarning>
       <head>
-        {/* Anti-flash: set html.dark SEBELUM paint berdasarkan preferensi tersimpan.
-            Default = 'dark' jika belum pernah disimpan. */}
+        {/* Ensure always light mode — no dark class */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `
-              (function(){
-                try {
-                  var t = localStorage.getItem('nl_theme') || 'dark';
-                  if (t === 'dark') document.documentElement.classList.add('dark');
-                  else document.documentElement.classList.remove('dark');
-                } catch(e) {
-                  document.documentElement.classList.add('dark');
-                }
-              })();
-            `,
+            __html: `(function(){ document.documentElement.classList.remove('dark'); })();`,
           }}
         />
       </head>
