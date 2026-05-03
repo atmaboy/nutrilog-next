@@ -24,9 +24,20 @@ export function fmtNum(n: number | null | undefined) {
 
 export function setCors(h: Headers) {
   h.set('Access-Control-Allow-Origin', '*')
-  h.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+  h.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
   h.set('Access-Control-Allow-Headers', 'Content-Type,Authorization')
 }
 
-export const ok  = (data: unknown) => Response.json(data)
-export const err = (msg: string, status = 400) => Response.json({ error: msg }, { status })
+function corsHeaders(): HeadersInit {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+  }
+}
+
+export const ok = (data: unknown) =>
+  Response.json(data, { headers: corsHeaders() })
+
+export const err = (msg: string, status = 400) =>
+  Response.json({ error: msg }, { status, headers: corsHeaders() })
