@@ -5,7 +5,7 @@ import { verifyAdminPwd, setAdminPwd, getCfg, setCfg, getGlobalLimit, getMainten
 import { signAdminToken } from '@/lib/auth'
 import { ok, err, setCors } from '@/lib/utils'
 import { invalidateMaintenanceCache } from '@/lib/maintenance'
-import { eq, desc, count } from 'drizzle-orm'
+import { eq, desc, count, and, gte, lte } from 'drizzle-orm'
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
@@ -27,7 +27,6 @@ export async function POST(req: NextRequest) {
   try {
     const action = req.nextUrl.searchParams.get('action')
 
-    // LOGIN
     if (action === 'login') {
       let body: { password?: string }
       try { body = await req.json() } catch { return jsonErr('Invalid JSON body', 400) }
@@ -44,7 +43,6 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ token, message: 'Login berhasil' }), { status: 200, headers: h })
     }
 
-    // LOGOUT
     if (action === 'logout') {
       const h = new Headers()
       setCors(h)
@@ -53,7 +51,6 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ message: 'Logout berhasil' }), { status: 200, headers: h })
     }
 
-    // UPDATE PASSWORD
     if (action === 'update_password') {
       const { newPassword } = await req.json()
       if (!newPassword || newPassword.length < 8) return err('Password minimal 8 karakter')
@@ -61,7 +58,6 @@ export async function POST(req: NextRequest) {
       return ok({ message: 'Password berhasil diubah' })
     }
 
-    // UPDATE CONFIG
     if (action === 'update_config') {
       const body = await req.json()
       if (body.dailyLimit !== undefined) await setCfg('default_daily_limit', String(body.dailyLimit))
@@ -69,14 +65,11 @@ export async function POST(req: NextRequest) {
       return ok({ message: 'Konfigurasi disimpan' })
     }
 
-    // UPDATE MAINTENANCE
     if (action === 'update_maintenance') {
       const body = await req.json()
       const { enabled, title, description } = body
-
       const existing = await db.select({ id: maintenanceConfig.id })
         .from(maintenanceConfig).limit(1)
-
       if (existing.length > 0) {
         await db.update(maintenanceConfig)
           .set({
@@ -94,17 +87,14 @@ export async function POST(req: NextRequest) {
           updatedAt:   new Date(),
         })
       }
-
       invalidateMaintenanceCache()
       return ok({ message: `Mode maintenance ${enabled ? 'diaktifkan' : 'dinonaktifkan'}` })
     }
 
-    // CREATE USER
     if (action === 'create_user') {
       const { username, password, dailyLimit, email } = await req.json()
       if (!username || !password) return err('Username dan password diperlukan')
       if (password.length < 6) return err('Password minimal 6 karakter')
-
       let resolvedEmail: string | null = null
       if (email && typeof email === 'string' && email.trim() !== '') {
         const trimmedEmail = email.trim().toLowerCase()
@@ -114,17 +104,11 @@ export async function POST(req: NextRequest) {
         if (existingEmail) return err('Email sudah digunakan', 409)
         resolvedEmail = trimmedEmail
       }
-
       const { hashPassword } = await import('@/lib/auth')
       const hash = await hashPassword(password)
       try {
         const [user] = await db.insert(users)
-          .values({
-            username: username.toLowerCase().trim(),
-            passwordHash: hash,
-            dailyLimit: dailyLimit || null,
-            email: resolvedEmail,
-          })
+          .values({ username: username.toLowerCase().trim(), passwordHash: hash, dailyLimit: dailyLimit || null, email: resolvedEmail })
           .returning({ id: users.id, username: users.username })
         return ok({ user })
       } catch {
@@ -132,15 +116,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // UPDATE USER
     if (action === 'update_user') {
       const { userId, isActive, dailyLimit, email } = await req.json()
       if (!userId) return err('userId diperlukan')
-
       const updateData: Record<string, unknown> = { updatedAt: new Date() }
       if (isActive !== undefined) updateData.isActive = isActive
       if (dailyLimit !== undefined) updateData.dailyLimit = dailyLimit === '' ? null : Number(dailyLimit)
-
       if (email !== undefined) {
         if (email === '' || email === null) {
           updateData.email = null
@@ -153,12 +134,10 @@ export async function POST(req: NextRequest) {
           updateData.email = trimmedEmail
         }
       }
-
       await db.update(users).set(updateData).where(eq(users.id, userId))
       return ok({ message: 'User diperbarui' })
     }
 
-    // DELETE USER
     if (action === 'delete_user') {
       const { userId } = await req.json()
       if (!userId) return err('userId diperlukan')
@@ -176,15 +155,12 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const action = req.nextUrl.searchParams.get('action')
-
-    // DELETE MEAL
     if (action === 'delete_meal') {
       const { id } = await req.json()
       if (!id) return err('meal id diperlukan')
       await db.delete(meals).where(eq(meals.id, id))
       return ok({ message: 'Riwayat analisa dihapus' })
     }
-
     return err('Action tidak dikenal')
   } catch (e) {
     console.error('[admin DELETE]', e)
@@ -196,25 +172,51 @@ export async function GET(req: NextRequest) {
   try {
     const action = req.nextUrl.searchParams.get('action')
 
-    // USER MEALS HISTORY
+    // USER MEALS HISTORY — with pagination + optional date filter
     if (action === 'user_meals') {
-      const userId = req.nextUrl.searchParams.get('user_id')
+      const userId    = req.nextUrl.searchParams.get('user_id')
       if (!userId) return err('user_id diperlukan')
+
+      const page      = parseInt(req.nextUrl.searchParams.get('page') || '1')
+      const perPage   = parseInt(req.nextUrl.searchParams.get('per_page') || '15')
+      const offset    = (page - 1) * perPage
+      const dateParam = req.nextUrl.searchParams.get('date') // YYYY-MM-DD
+
+      const conditions = [eq(meals.userId, userId)]
+      if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        const dayStart = new Date(`${dateParam}T00:00:00.000Z`)
+        const dayEnd   = new Date(`${dateParam}T23:59:59.999Z`)
+        conditions.push(gte(meals.loggedAt, dayStart))
+        conditions.push(lte(meals.loggedAt, dayEnd))
+      }
+      const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions)
+
       const userMeals = await db.select({
-        id: meals.id,
-        dishNames: meals.dishNames,
+        id:            meals.id,
+        dishNames:     meals.dishNames,
         totalCalories: meals.totalCalories,
-        totalProtein: meals.totalProtein,
-        totalCarbs: meals.totalCarbs,
-        totalFat: meals.totalFat,
-        imageUrl: meals.imageUrl,
-        rawAnalysis: meals.rawAnalysis,
-        loggedAt: meals.loggedAt,
+        totalProtein:  meals.totalProtein,
+        totalCarbs:    meals.totalCarbs,
+        totalFat:      meals.totalFat,
+        imageUrl:      meals.imageUrl,
+        rawAnalysis:   meals.rawAnalysis,
+        loggedAt:      meals.loggedAt,
       })
         .from(meals)
-        .where(eq(meals.userId, userId))
+        .where(whereClause)
         .orderBy(desc(meals.loggedAt))
-      return ok({ meals: userMeals })
+        .limit(perPage)
+        .offset(offset)
+
+      const [{ c }] = await db.select({ c: count() }).from(meals).where(whereClause)
+
+      return ok({
+        meals: userMeals,
+        total: c,
+        page,
+        perPage,
+        totalPages: Math.ceil(c / perPage),
+      })
     }
 
     if (action === 'users') {
@@ -233,11 +235,7 @@ export async function GET(req: NextRequest) {
       const [userCount]   = await db.select({ total: count() }).from(users)
       const [mealCount]   = await db.select({ total: count() }).from(meals)
       const [reportCount] = await db.select({ total: count() }).from(reports)
-      return ok({
-        users: userCount.total,
-        meals: mealCount.total,
-        reports: reportCount.total,
-      })
+      return ok({ users: userCount.total, meals: mealCount.total, reports: reportCount.total })
     }
 
     if (action === 'config') {
