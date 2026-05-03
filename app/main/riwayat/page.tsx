@@ -27,7 +27,6 @@ function fmtDate(iso: string) {
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 }
-// Format date string YYYY-MM-DD → "Senin, 3 Mei 2026"
 function fmtDateStr(dateStr: string) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
@@ -50,6 +49,7 @@ const C = {
   purple: '#9B8EC4',
 }
 
+// ── Consistent icon set ─────────────────────────────────
 const IconFire = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
     <path d="M12 2C12 2 7 8 7 13a5 5 0 0 0 10 0c0-3-2-6-2-6s-1 3-3 3c-1 0-2-1-2-2 0-2 2-6 2-8z" fill="#FF8A65"/>
@@ -75,6 +75,38 @@ const IconDrop = () => (
     <path d="M12 3 C12 3 5 12 5 16a7 7 0 0 0 14 0c0-4-7-13-7-13z" fill="#81C784"/>
   </svg>
 )
+const IconTrash = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6M14 11v6"/>
+    <path d="M9 6V4h6v2"/>
+  </svg>
+)
+const IconLightbulb = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="9" y1="18" x2="15" y2="18"/>
+    <line x1="10" y1="22" x2="14" y2="22"/>
+    <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1.5.55 2.7 1.5 3.5.75.76 1.23 1.52 1.41 2.5"/>
+  </svg>
+)
+const IconCalendar = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/>
+    <line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+)
+const IconSalad = () => (
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2a5 5 0 0 1 5 5H7a5 5 0 0 1 5-5z"/>
+    <path d="M3 10h18"/>
+    <path d="M5 10v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/>
+    <path d="M9 14h6"/>
+  </svg>
+)
+// ────────────────────────────────────────────────────────
 
 function SkeletonBlock({ height, radius = 12, width = '100%' }: { height: number; radius?: number; width?: string }) {
   return (
@@ -144,7 +176,7 @@ export default function RiwayatPage() {
   const [contentVisible, setContentVisible] = useState(true)
   const [modalMeal, setModalMeal] = useState<Meal | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [filterDate, setFilterDate] = useState('')  // YYYY-MM-DD
+  const [filterDate, setFilterDate] = useState('')
 
   const load = useCallback(async (p: number, isPaging = false, date = '') => {
     if (isPaging) {
@@ -172,7 +204,6 @@ export default function RiwayatPage() {
 
   useEffect(() => { load(1) }, [load])
 
-  // Date filter handlers
   function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setFilterDate(val)
@@ -206,6 +237,14 @@ export default function RiwayatPage() {
 
   const isFiltering = filterDate !== ''
 
+  // Nutrisi icon → warna konsisten untuk summary card & modal detail
+  const nutriStats = (kcal: number | string, p: string, k: string, l: string) => [
+    { icon: <IconFire />, val: String(kcal), label: 'Kalori', valColor: '#FF8A65' },
+    { icon: <IconDumbbell />, val: typeof p === 'string' ? p : `${parseFloat(p).toFixed(1)}g`, label: 'Protein', valColor: '#2ECC71' },
+    { icon: <IconGrain />, val: typeof k === 'string' ? k : `${parseFloat(k).toFixed(1)}g`, label: 'Karbo', valColor: '#6B9FD4' },
+    { icon: <IconDrop />, val: typeof l === 'string' ? l : `${parseFloat(l).toFixed(1)}g`, label: 'Lemak', valColor: '#81C784' },
+  ]
+
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
       <style>{`
@@ -231,31 +270,15 @@ export default function RiwayatPage() {
       `}</style>
 
       {/* ── DATE FILTER BAR */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 16,
-      }}>
-        <div style={{
-          position: 'relative',
-          flex: 1,
-        }}>
-          {/* Calendar icon */}
-          <svg
-            width="14" height="14" viewBox="0 0 24 24"
-            fill="none" stroke={filterDate ? C.green : C.muted}
-            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            style={{
-              position: 'absolute', left: 10, top: '50%',
-              transform: 'translateY(-50%)', pointerEvents: 'none', flexShrink: 0,
-            }}
-          >
-            <rect x="3" y="4" width="18" height="18" rx="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <span style={{
+            position: 'absolute', left: 10, top: '50%',
+            transform: 'translateY(-50%)', pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', color: filterDate ? C.green : C.muted,
+          }}>
+            <IconCalendar />
+          </span>
           <input
             type="date"
             value={filterDate}
@@ -276,12 +299,9 @@ export default function RiwayatPage() {
             }}
           />
         </div>
-
-        {/* Reset button — only shown when filter is active */}
         {filterDate && (
           <button
             onClick={handleResetFilter}
-            title="Hapus filter tanggal"
             style={{
               display: 'flex', alignItems: 'center', gap: 5,
               padding: '9px 12px',
@@ -320,16 +340,15 @@ export default function RiwayatPage() {
         </div>
       )}
 
-      {/* ── Paging skeleton */}
       {paging && <PaginationSkeleton />}
 
-      {/* ── Empty state saat filter aktif & tidak ada hasil */}
+      {/* ── Empty: filter aktif & tidak ada hasil */}
       {!paging && !loading && history && history.meals.length === 0 && isFiltering && (
         <div style={{ textAlign: 'center', padding: '52px 0 40px' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📅</div>
-          <div style={{ fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 6 }}>
-            Tidak ada riwayat makanan
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, opacity: 0.45 }}>
+            <IconCalendar />
           </div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 6 }}>Tidak ada riwayat makanan</div>
           <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>
             Tidak ditemukan catatan makan pada<br />
             <strong style={{ color: C.text }}>{fmtDateStr(filterDate)}</strong>
@@ -339,16 +358,16 @@ export default function RiwayatPage() {
             border: `1.5px solid ${C.summaryBorder}`,
             borderRadius: 12, color: C.summaryPillText,
             fontWeight: 600, fontSize: 13, cursor: 'pointer',
-          }}>
-            Lihat Semua Riwayat
-          </button>
+          }}>Lihat Semua Riwayat</button>
         </div>
       )}
 
-      {/* ── Empty state tanpa filter */}
+      {/* ── Empty: tanpa filter */}
       {!paging && !loading && history && history.meals.length === 0 && !isFiltering && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🥗</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, opacity: 0.45 }}>
+            <IconSalad />
+          </div>
           <div style={{ fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 6 }}>Belum Ada Catatan Makan</div>
           <div style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>
             Foto makananmu dan AI akan mencatat kandungan gizinya.
@@ -356,19 +375,13 @@ export default function RiwayatPage() {
           <button onClick={() => router.push('/main/catat')} style={{
             padding: '11px 24px', background: C.green, borderRadius: 13,
             color: '#FFFFFF', fontWeight: 700, fontSize: 14, border: 'none', cursor: 'pointer',
-          }}>
-            Catat Makanan Pertama
-          </button>
+          }}>Catat Makanan Pertama</button>
         </div>
       )}
 
       {/* ── Main content */}
       {!paging && history && history.meals.length > 0 && (
-        <div style={{
-          opacity: contentVisible ? 1 : 0,
-          transition: 'opacity 220ms ease',
-        }}>
-          {/* Info bar */}
+        <div style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 220ms ease' }}>
           <div style={{ color: C.muted, fontSize: 12, marginBottom: 14 }}>
             {isFiltering
               ? `${history.total} catatan pada ${fmtDateStr(filterDate)}`
@@ -378,21 +391,17 @@ export default function RiwayatPage() {
 
           {Object.entries(grouped).map(([date, meals]) => {
             const totalKcal = meals.reduce((s, m) => s + m.totalCalories, 0)
-            const totalP = meals.reduce((s, m) => s + parseFloat(m.totalProtein), 0)
-            const totalK = meals.reduce((s, m) => s + parseFloat(m.totalCarbs), 0)
-            const totalL = meals.reduce((s, m) => s + parseFloat(m.totalFat), 0)
+            const totalP    = meals.reduce((s, m) => s + parseFloat(m.totalProtein), 0)
+            const totalK    = meals.reduce((s, m) => s + parseFloat(m.totalCarbs), 0)
+            const totalL    = meals.reduce((s, m) => s + parseFloat(m.totalFat), 0)
 
             return (
               <div key={date} style={{ marginBottom: 24 }}>
-                {/* Date header */}
-                <div style={{
-                  fontSize: 12, fontWeight: 600, color: C.muted,
-                  letterSpacing: '.6px', textTransform: 'uppercase', marginBottom: 10,
-                }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: '.6px', textTransform: 'uppercase', marginBottom: 10 }}>
                   {fmtDate(date + 'T00:00:00')}
                 </div>
 
-                {/* Summary card */}
+                {/* ── Summary card */}
                 <div style={{
                   background: C.summaryBg,
                   border: `1.5px solid ${C.summaryBorder}`,
@@ -406,30 +415,23 @@ export default function RiwayatPage() {
                     border: `1px solid ${C.summaryBorder}`,
                     borderRadius: 999, padding: '3px 10px', marginBottom: 10,
                   }}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 2C12 2 7 8 7 13a5 5 0 0 0 10 0c0-3-2-6-2-6s-1 3-3 3c-1 0-2-1-2-2 0-2 2-6 2-8z" fill="#16a34a"/>
-                    </svg>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: C.summaryPillText, letterSpacing: '.3px' }}>
-                      Ringkasan Hari Ini
-                    </span>
+                    <IconFire />
+                    <span style={{ fontSize: 11, fontWeight: 600, color: C.summaryPillText, letterSpacing: '.3px' }}>Ringkasan Hari Ini</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
-                    {[
-                      { icon: <IconFire />, val: totalKcal, label: 'Kalori' },
-                      { icon: <IconDumbbell />, val: totalP.toFixed(1) + 'g', label: 'Protein' },
-                      { icon: <IconGrain />, val: totalK.toFixed(1) + 'g', label: 'Karbo' },
-                      { icon: <IconDrop />, val: totalL.toFixed(1) + 'g', label: 'Lemak' },
-                    ].map(({ icon, val, label }) => (
-                      <div key={label} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 22 }}>{icon}</div>
-                        <div style={{ fontWeight: 600, fontSize: 16, color: C.text, lineHeight: 1.1 }}>{val}</div>
-                        <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.1 }}>{label}</div>
-                      </div>
-                    ))}
+                    {nutriStats(totalKcal, totalP.toFixed(1) + 'g', totalK.toFixed(1) + 'g', totalL.toFixed(1) + 'g')
+                      .map(({ icon, val, label, valColor }) => (
+                        <div key={label} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                          <div style={{ height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</div>
+                          <div style={{ fontWeight: 600, fontSize: 16, color: valColor, lineHeight: 1.1 }}>{val}</div>
+                          <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.1 }}>{label}</div>
+                        </div>
+                      ))
+                    }
                   </div>
                 </div>
 
-                {/* Meal cards */}
+                {/* ── Meal cards */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {meals.map(meal => (
                     <div
@@ -446,10 +448,7 @@ export default function RiwayatPage() {
                       onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 3,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {meal.dishNames.length > 0 ? meal.dishNames.join(', ') : 'Makanan'}
                         </div>
                         <div style={{ fontSize: 12, color: C.muted }}>
@@ -475,8 +474,6 @@ export default function RiwayatPage() {
           {/* ── PAGINATION */}
           {history.totalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, paddingTop: 8, flexWrap: 'wrap' }}>
-
-              {/* First page button — only show when not on page 1 */}
               {page > 1 && (
                 <button
                   disabled={paging}
@@ -491,7 +488,6 @@ export default function RiwayatPage() {
                     transition: 'opacity .15s',
                   }}
                 >
-                  {/* Double left chevron icon */}
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="11 17 6 12 11 7"/>
                     <polyline points="18 17 13 12 18 7"/>
@@ -499,8 +495,6 @@ export default function RiwayatPage() {
                   First
                 </button>
               )}
-
-              {/* Prev */}
               <button
                 disabled={page === 1 || paging}
                 onClick={() => load(page - 1, true, filterDate)}
@@ -514,24 +508,13 @@ export default function RiwayatPage() {
                   transition: 'opacity .15s',
                 }}
               >← Prev</button>
-
-              {/* Page indicator / spinner */}
-              <span style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                color: C.muted, fontSize: 13, minWidth: 52, justifyContent: 'center',
-              }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: C.muted, fontSize: 13, minWidth: 52, justifyContent: 'center' }}>
                 {paging ? (
-                  <svg
-                    width="16" height="16" viewBox="0 0 24 24"
-                    fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round"
-                    style={{ animation: 'spin .7s linear infinite', flexShrink: 0 }}
-                  >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin .7s linear infinite', flexShrink: 0 }}>
                     <path d="M12 2 a10 10 0 0 1 10 10" />
                   </svg>
                 ) : `${page} / ${history.totalPages}`}
               </span>
-
-              {/* Next */}
               <button
                 disabled={page === history.totalPages || paging}
                 onClick={() => load(page + 1, true, filterDate)}
@@ -547,19 +530,9 @@ export default function RiwayatPage() {
                 }}
               >
                 {paging ? (
-                  <>
-                    <svg
-                      width="13" height="13" viewBox="0 0 24 24"
-                      fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-                      style={{ animation: 'spin .7s linear infinite' }}
-                    >
-                      <path d="M12 2 a10 10 0 0 1 10 10" />
-                    </svg>
-                    Memuat…
-                  </>
+                  <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin .7s linear infinite' }}><path d="M12 2 a10 10 0 0 1 10 10" /></svg>Memuat…</>
                 ) : 'Next →'}
               </button>
-
             </div>
           )}
         </div>
@@ -596,27 +569,26 @@ export default function RiwayatPage() {
 
               {modalMeal.imageUrl && (
                 <div style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
-                  <img
-                    src={modalMeal.imageUrl}
-                    alt="Foto makanan"
-                    style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
-                  />
+                  <img src={modalMeal.imageUrl} alt="Foto makanan" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }} />
                 </div>
               )}
 
+              {/* Detail nutrisi — warna sama persis dengan summary card */}
               <div style={{
                 display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16,
-                background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: '12px 8px',
+                background: C.summaryBg,
+                border: `1.5px solid ${C.summaryBorder}`,
+                borderRadius: 20, padding: '12px 8px',
               }}>
-                {[
-                  { icon: <IconFire />, val: String(modalMeal.totalCalories), label: 'kkal' },
-                  { icon: <IconDumbbell />, val: `${parseFloat(modalMeal.totalProtein).toFixed(1)}g`, label: 'protein' },
-                  { icon: <IconGrain />, val: `${parseFloat(modalMeal.totalCarbs).toFixed(1)}g`, label: 'karbo' },
-                  { icon: <IconDrop />, val: `${parseFloat(modalMeal.totalFat).toFixed(1)}g`, label: 'lemak' },
-                ].map(({ icon, val, label }) => (
+                {nutriStats(
+                  modalMeal.totalCalories,
+                  `${parseFloat(modalMeal.totalProtein).toFixed(1)}g`,
+                  `${parseFloat(modalMeal.totalCarbs).toFixed(1)}g`,
+                  `${parseFloat(modalMeal.totalFat).toFixed(1)}g`,
+                ).map(({ icon, val, label, valColor }) => (
                   <div key={label} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                     {icon}
-                    <div style={{ fontWeight: 600, fontSize: 15, color: C.text }}>{val}</div>
+                    <div style={{ fontWeight: 600, fontSize: 15, color: valColor }}>{val}</div>
                     <div style={{ fontSize: 10, color: C.muted }}>{label}</div>
                   </div>
                 ))}
@@ -628,21 +600,18 @@ export default function RiwayatPage() {
                     Menu Terdeteksi
                   </div>
                   {modalMeal.rawAnalysis.dishes.map((d, i) => (
-                    <div key={i} style={{
-                      background: C.bg, border: `1px solid ${C.border}`,
-                      borderRadius: 14, padding: '10px 14px', marginBottom: 8,
-                    }}>
+                    <div key={i} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '10px 14px', marginBottom: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{d.name}</div>
                           <div style={{ fontSize: 11, color: C.muted }}>{d.portion}</div>
                         </div>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{d.calories} kkal</div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: '#FF8A65' }}>{d.calories} kkal</div>
                       </div>
                       <div style={{ display: 'flex', gap: 12, fontSize: 12, color: C.muted }}>
-                        <span>P: {d.protein}g</span>
-                        <span>K: {d.carbs}g</span>
-                        <span>L: {d.fat}g</span>
+                        <span style={{ color: '#2ECC71' }}>P: {d.protein}g</span>
+                        <span style={{ color: '#6B9FD4' }}>K: {d.carbs}g</span>
+                        <span style={{ color: '#81C784' }}>L: {d.fat}g</span>
                       </div>
                     </div>
                   ))}
@@ -651,11 +620,13 @@ export default function RiwayatPage() {
 
               {modalMeal.rawAnalysis?.notes && (
                 <div style={{
-                  background: '#F0FDF4', border: '1px solid #BBF7D0',
+                  background: C.summaryBg, border: `1px solid ${C.summaryBorder}`,
                   borderRadius: 12, padding: '10px 14px',
                   fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 16,
+                  display: 'flex', alignItems: 'flex-start', gap: 8,
                 }}>
-                  💡 {modalMeal.rawAnalysis.notes}
+                  <span style={{ flexShrink: 0, marginTop: 2, color: C.green }}><IconLightbulb /></span>
+                  <span>{modalMeal.rawAnalysis.notes}</span>
                 </div>
               )}
 
@@ -664,8 +635,10 @@ export default function RiwayatPage() {
                 background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)',
                 color: C.red, fontWeight: 700, fontSize: 14, cursor: 'pointer',
                 opacity: deleting ? 0.6 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}>
-                {deleting ? '⏳ Menghapus...' : '🗑️ Hapus Data Ini'}
+                <IconTrash />
+                {deleting ? 'Menghapus...' : 'Hapus Data Ini'}
               </button>
             </div>
           </div>
