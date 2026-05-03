@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   title: 'Gizku',
   description: 'Analisa nutrisi makanan dengan AI',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    apple: '/apple-touch-icon.svg',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -23,7 +29,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
-  themeColor: '#F9FAFB',
+  themeColor: '#2ECC71',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
