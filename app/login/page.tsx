@@ -18,14 +18,11 @@ export default function LoginPage() {
   useEffect(() => {
     const token = localStorage.getItem('nl_token')
     if (token) { router.replace('/main/catat'); return }
+    document.documentElement.classList.remove('dark')
 
-    // Cek apakah user baru saja di-redirect akibat maintenance
     const raw = localStorage.getItem('nl_maintenance')
     if (raw) {
-      try {
-        setMaintenance(JSON.parse(raw))
-      } catch {}
-      // Hapus flag setelah dibaca agar tidak muncul terus
+      try { setMaintenance(JSON.parse(raw)) } catch {}
       localStorage.removeItem('nl_maintenance')
     }
   }, [router])
@@ -44,7 +41,6 @@ export default function LoginPage() {
       })
       const data = await res.json()
 
-      // Cek maintenance SEBELUM blok !res.ok agar banner tampil
       if (data.maintenance) {
         setMaintenance({
           title: data.maintenance.title || 'Aplikasi Sedang Dalam Pemeliharaan',
@@ -53,10 +49,7 @@ export default function LoginPage() {
         return
       }
 
-      if (!res.ok) {
-        setError(data.error || 'Terjadi kesalahan')
-        return
-      }
+      if (!res.ok) { setError(data.error || 'Terjadi kesalahan'); return }
 
       localStorage.setItem('nl_token', data.token)
       localStorage.setItem('nl_user', JSON.stringify(data.user))
@@ -68,36 +61,57 @@ export default function LoginPage() {
     }
   }
 
+  const C = {
+    bg: '#F9FAFB',
+    white: '#FFFFFF',
+    border: '#E5E7EB',
+    border2: '#D1D5DB',
+    text: '#111827',
+    muted: '#6B7280',
+    green: '#2ECC71',
+    greenDim: '#D4F5E4',
+    red: '#EF4444',
+  }
+
   return (
     <div style={{
       minHeight: '100dvh',
-      background: 'var(--bg)',
+      background: C.bg,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '32px 22px',
-      fontFamily: "'DM Sans', sans-serif",
+      fontFamily: "'Inter', sans-serif",
     }}>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:wght@700;900&display=swap" rel="stylesheet" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet" />
 
       <div style={{ width: '100%', maxWidth: 380 }}>
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{
-            fontFamily: "'Fraunces', serif",
-            fontSize: 32,
-            fontWeight: 900,
-            color: 'var(--text)',
-          }}>
-            Nutri<span style={{ color: 'var(--accent)' }}>Log</span>.
-          </div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
-            Food Intelligence Tracker
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32, gap: 10 }}>
+          {/* Icon */}
+          <svg width="52" height="52" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="16" fill="#2ECC71"/>
+            <path d="M8 16 Q8 23 16 23 Q24 23 24 16" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/>
+            <line x1="8" y1="16" x2="24" y2="16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+            <polyline points="12,11 15,14.5 20.5,9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          </svg>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              fontFamily: "'Montserrat', sans-serif",
+              fontWeight: 600,
+              fontSize: 28,
+              color: C.text,
+              lineHeight: 1.2,
+            }}>Gizku</div>
+            <div style={{ color: C.muted, fontSize: 13, marginTop: 4, fontWeight: 400 }}>
+              AI Nutrition Companion
+            </div>
           </div>
         </div>
 
-        {/* ── MAINTENANCE BANNER ── */}
+        {/* Maintenance Banner */}
         {maintenance && (
           <div style={{
             background: 'rgba(251,191,36,.08)',
@@ -108,19 +122,10 @@ export default function LoginPage() {
             textAlign: 'center',
           }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🔧</div>
-            <div style={{
-              fontWeight: 700,
-              fontSize: 15,
-              color: '#FBBF24',
-              marginBottom: 6,
-            }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: '#D97706', marginBottom: 6 }}>
               {maintenance.title}
             </div>
-            <div style={{
-              color: 'var(--text-muted)',
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}>
+            <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.5 }}>
               {maintenance.description}
             </div>
           </div>
@@ -128,29 +133,34 @@ export default function LoginPage() {
 
         {/* Card */}
         <div style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 22,
+          background: C.white,
+          border: `1px solid ${C.border}`,
+          borderRadius: 24,
           padding: 24,
+          boxShadow: '0 1px 8px rgba(0,0,0,.06)',
         }}>
-          {/* Tabs */}
+          {/* Tabs login/register */}
           <div style={{
             display: 'flex',
             gap: 4,
-            background: 'var(--bg)',
-            borderRadius: 13,
+            background: C.bg,
+            border: `1px solid ${C.border}`,
+            borderRadius: 999,
             padding: 4,
             marginBottom: 20,
+            height: 48,
+            alignItems: 'center',
           }}>
             {(['login', 'register'] as const).map(t => (
               <button key={t} onClick={() => { setTab(t); setError(''); setMaintenance(null) }} style={{
                 flex: 1,
-                padding: '9px 0',
-                borderRadius: 10,
-                fontWeight: 600,
-                fontSize: 13,
-                background: tab === t ? 'var(--accent)' : 'transparent',
-                color: tab === t ? '#081520' : 'var(--text-muted)',
+                height: '100%',
+                borderRadius: 999,
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: tab === t ? 600 : 500,
+                fontSize: 14,
+                background: tab === t ? C.greenDim : 'transparent',
+                color: tab === t ? C.text : C.muted,
                 border: 'none',
                 cursor: 'pointer',
                 transition: 'all .2s',
@@ -163,11 +173,11 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit}>
             {error && (
               <div style={{
-                background: 'rgba(248,113,113,.1)',
-                border: '1px solid rgba(248,113,113,.25)',
+                background: 'rgba(239,68,68,.08)',
+                border: '1px solid rgba(239,68,68,.2)',
                 borderRadius: 10,
                 padding: '9px 13px',
-                color: '#F87171',
+                color: C.red,
                 fontSize: 13,
                 marginBottom: 12,
               }}>{error}</div>
@@ -175,7 +185,7 @@ export default function LoginPage() {
 
             {/* Username */}
             <div style={{ marginBottom: 13 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>
                 Username
               </div>
               <input
@@ -187,21 +197,22 @@ export default function LoginPage() {
                 autoFocus
                 style={{
                   width: '100%',
-                  background: 'var(--surface2)',
-                  border: '1px solid var(--border2)',
+                  background: C.bg,
+                  border: `1px solid ${C.border2}`,
                   borderRadius: 12,
                   padding: '12px 14px',
-                  color: 'var(--text)',
+                  color: C.text,
                   fontSize: 15,
                   outline: 'none',
                   boxSizing: 'border-box',
+                  fontFamily: "'Inter', sans-serif",
                 }}
               />
             </div>
 
             {/* Password */}
-            <div style={{ marginBottom: 13 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>
                 Password
               </div>
               <div style={{ position: 'relative' }}>
@@ -213,14 +224,15 @@ export default function LoginPage() {
                   required
                   style={{
                     width: '100%',
-                    background: 'var(--surface2)',
-                    border: '1px solid var(--border2)',
+                    background: C.bg,
+                    border: `1px solid ${C.border2}`,
                     borderRadius: 12,
                     padding: '12px 44px 12px 14px',
-                    color: 'var(--text)',
+                    color: C.text,
                     fontSize: 15,
                     outline: 'none',
                     boxSizing: 'border-box',
+                    fontFamily: "'Inter', sans-serif",
                   }}
                 />
                 <button type="button" onClick={() => setShowPass(s => !s)} style={{
@@ -235,9 +247,10 @@ export default function LoginPage() {
             <button type="submit" disabled={loading} style={{
               width: '100%',
               padding: 14,
-              background: 'var(--accent)',
+              background: C.green,
               borderRadius: 13,
-              color: '#081520',
+              color: '#FFFFFF',
+              fontFamily: "'Inter', sans-serif",
               fontWeight: 700,
               fontSize: 15,
               border: 'none',
@@ -249,10 +262,12 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center', marginTop: 14, lineHeight: 1.6 }}>
+          <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 1.6 }}>
             {tab === 'login' ? 'Belum punya akun? ' : 'Sudah punya akun? '}
-            <span onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); setError(''); setMaintenance(null) }}
-              style={{ color: 'var(--accent)', cursor: 'pointer' }}>
+            <span
+              onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); setError(''); setMaintenance(null) }}
+              style={{ color: C.green, cursor: 'pointer', fontWeight: 600 }}
+            >
               {tab === 'login' ? 'Daftar sekarang' : 'Masuk'}
             </span>
           </div>

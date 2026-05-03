@@ -16,7 +16,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [reportSending, setReportSending] = useState(false)
   const [reportDone, setReportDone] = useState(false)
   const [dayKcal, setDayKcal] = useState<number | null>(null)
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
   const forceLogout = useCallback(() => {
     localStorage.removeItem('nl_token')
@@ -28,16 +27,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const token = localStorage.getItem('nl_token')
     const u = localStorage.getItem('nl_user')
     if (!token || !u) { router.replace('/login'); return }
-
-    const savedTheme = (localStorage.getItem('nl_theme') || 'dark') as 'dark' | 'light'
-    setTheme(savedTheme)
-    if (savedTheme === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-
-    // Validate token against server — if 401, force logout immediately
+    // Always light mode — remove legacy dark class if any
+    document.documentElement.classList.remove('dark')
     validateToken(token, u)
   }, [router])
 
@@ -47,17 +38,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       })
-      if (res.status === 401) {
-        forceLogout()
-        return
-      }
-      // Token valid — set user and load data
+      if (res.status === 401) { forceLogout(); return }
       setUser(JSON.parse(userStr))
       const data = await res.json()
       setDayKcal(data.summary?.totalCalories ?? 0)
       checkMaintenance(token)
     } catch {
-      // Network error — still allow access, set user
       setUser(JSON.parse(userStr))
       checkMaintenance(token)
     }
@@ -78,20 +64,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }))
         forceLogout()
       }
-    } catch {
-      // fail-open
-    }
-  }
-
-  function toggleTheme() {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    localStorage.setItem('nl_theme', next)
-    if (next === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
+    } catch { /* fail-open */ }
   }
 
   function logout() {
@@ -117,15 +90,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Still loading — validate token first before showing anything
   if (!user) return null
 
   const initial = user.username[0]?.toUpperCase() ?? 'U'
 
+  // ── Design tokens (Gizku light)
+  const C = {
+    bg: '#F9FAFB',
+    white: '#FFFFFF',
+    border: '#E5E7EB',
+    text: '#111827',
+    muted: '#6B7280',
+    green: '#2ECC71',
+    greenDim: '#D4F5E4',
+    red: '#EF4444',
+  }
+
   return (
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:wght@700;900&display=swap" rel="stylesheet" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet" />
 
       <div style={{
         maxWidth: 480,
@@ -133,138 +118,226 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: "'DM Sans', sans-serif",
+        fontFamily: "'Inter', sans-serif",
+        background: C.bg,
       }}>
+
         {/* ── HEADER ── */}
         <header style={{
-          background: 'var(--bg)',
+          background: C.bg,
           padding: 'calc(10px + env(safe-area-inset-top, 0px)) 16px 0',
-          borderBottom: '1px solid var(--border-custom)',
           position: 'sticky',
           top: 0,
           zIndex: 10,
           flexShrink: 0,
-          transition: 'background .25s, border-color .25s',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            {/* Logo */}
-            <div>
-              <div style={{ fontFamily: "'Fraunces', serif", fontSize: 21, fontWeight: 900, color: 'var(--text)' }}>
-                Nutri<span style={{ color: 'var(--accent-custom)' }}>Log</span>
+
+          {/* Logo bar ~64px */}
+          <div style={{
+            height: 64,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            {/* Left: icon + wordmark */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Bowl+check icon */}
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="16" cy="16" r="16" fill="#2ECC71"/>
+                {/* bowl base */}
+                <path d="M8 16 Q8 23 16 23 Q24 23 24 16" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/>
+                {/* bowl rim */}
+                <line x1="8" y1="16" x2="24" y2="16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                {/* check */}
+                <polyline points="12,11 15,14.5 20.5,9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+              </svg>
+              <div>
+                <div style={{
+                  fontFamily: "'Montserrat', sans-serif",
+                  fontWeight: 600,
+                  fontSize: 20,
+                  color: C.text,
+                  lineHeight: 1.2,
+                }}>Gizku</div>
+                <div style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 400,
+                  fontSize: 12,
+                  color: C.muted,
+                  lineHeight: 1.2,
+                }}>AI Nutrition Companion</div>
               </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 1 }}>AI Food Tracker</div>
             </div>
 
-            {/* Right side */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              {/* Day kcal pill */}
-              {dayKcal !== null && dayKcal > 0 && (
-                <div style={{
-                  background: 'var(--accent-dim)',
-                  border: '1px solid var(--border-custom)',
-                  borderRadius: 10,
-                  padding: '5px 9px',
-                  textAlign: 'center',
-                }}>
-                  <div style={{ color: 'var(--accent-custom)', fontWeight: 700, fontSize: 14, fontFamily: "'Fraunces', serif" }}>
-                    {dayKcal.toLocaleString('id-ID')}
-                  </div>
-                  <div style={{ color: 'var(--text-muted)', fontSize: 9 }}>kkal hari ini</div>
-                </div>
-              )}
-
-              {/* Theme toggle */}
-              <button onClick={toggleTheme} style={{
-                width: 34, height: 34, borderRadius: 10,
-                background: 'var(--surface)', border: '1px solid var(--border-custom)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 15, cursor: 'pointer',
+            {/* Right: kcal pill + user chip */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* Kcal pill — always show, 0 when not yet loaded */}
+              <div style={{
+                width: 96,
+                height: 40,
+                background: C.white,
+                border: `1px solid ${C.border}`,
+                borderRadius: 999,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
               }}>
-                {theme === 'dark' ? '☀️' : '🌙'}
-              </button>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 16, color: C.text, lineHeight: 1.1 }}>
+                  {dayKcal !== null ? dayKcal.toLocaleString('id-ID') : '—'}
+                </span>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 11, color: C.muted, lineHeight: 1.1 }}>kkal hari ini</span>
+              </div>
 
               {/* User chip */}
               <div onClick={() => setShowUserMenu(true)} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: 'var(--surface)', border: '1px solid var(--border-custom)',
-                borderRadius: 20, padding: '5px 10px 5px 7px', cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: C.white,
+                border: `1px solid ${C.border}`,
+                borderRadius: 999,
+                padding: '5px 10px 5px 7px',
+                cursor: 'pointer',
+                flexShrink: 0,
               }}>
                 <div style={{
-                  width: 22, height: 22, borderRadius: '50%',
-                  background: 'var(--accent-custom)', color: '#081520',
-                  fontWeight: 700, fontSize: 10,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {initial}
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: C.green,
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 11,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontFamily: "'Montserrat', sans-serif",
+                }}>{initial}</div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.text, maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {user.username}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Tabs */}
+          {/* Tab bar */}
           <div style={{
-            display: 'flex', gap: 4,
-            background: 'var(--surface)', borderRadius: 13,
-            padding: 4, marginBottom: 12,
+            display: 'flex',
+            background: C.white,
+            border: `1px solid ${C.border}`,
+            borderRadius: 999,
+            padding: 4,
+            marginTop: 8,
+            marginBottom: 12,
+            height: 56,
+            alignItems: 'center',
           }}>
-            {[
-              { href: '/main/catat', label: '📷 Catat Makan' },
-              { href: '/main/riwayat', label: '📊 Riwayat' },
-            ].map(({ href, label }) => (
-              <Link key={href} href={href} style={{
-                flex: 1, padding: '9px 0', borderRadius: 10,
-                fontWeight: 600, fontSize: 13,
-                textAlign: 'center', textDecoration: 'none',
-                background: pathname === href ? 'var(--accent-custom)' : 'transparent',
-                color: pathname === href ? '#081520' : 'var(--text-muted)',
-                transition: 'all .22s',
-              }}>
-                {label}
-              </Link>
-            ))}
+            {([
+              {
+                href: '/main/catat',
+                label: 'Catat Makan',
+                icon: (
+                  // camera outline
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                ),
+              },
+              {
+                href: '/main/riwayat',
+                label: 'Riwayat',
+                icon: (
+                  // bar chart
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10"/>
+                    <line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                  </svg>
+                ),
+              },
+            ] as const).map(({ href, label, icon }) => {
+              const active = pathname === href
+              return (
+                <Link key={href} href={href} style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  height: '100%',
+                  borderRadius: 999,
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: active ? 600 : 500,
+                  fontSize: 14,
+                  textDecoration: 'none',
+                  background: active ? C.greenDim : 'transparent',
+                  color: active ? C.text : C.muted,
+                  transition: 'all .2s',
+                }}>
+                  <span style={{ color: active ? C.green : C.muted }}>{icon}</span>
+                  {label}
+                </Link>
+              )
+            })}
           </div>
         </header>
 
         {/* ── CONTENT ── */}
-        <main style={{ flex: 1, overflowY: 'auto', padding: '14px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)' }}>
+        <main style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '14px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)',
+          background: C.bg,
+        }}>
           {children}
         </main>
 
         {/* Copyright */}
-        <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 11, padding: '8px 0 calc(8px + env(safe-area-inset-bottom, 0px))' }}>
-          © 2026 NutriLog · dev.wiryawan@gmail.com
+        <div style={{
+          textAlign: 'center',
+          color: C.muted,
+          fontSize: 11,
+          fontFamily: "'Inter', sans-serif",
+          padding: '8px 0 calc(8px + env(safe-area-inset-bottom, 0px))',
+          background: C.bg,
+        }}>
+          © 2026 Gizku · dev.wiryawan@gmail.com
         </div>
       </div>
 
       {/* ── USER MENU OVERLAY ── */}
       {showUserMenu && (
         <div onClick={() => setShowUserMenu(false)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 100,
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 100,
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         }}>
           <div onClick={e => e.stopPropagation()} style={{
-            background: 'var(--surface)', borderRadius: '22px 22px 0 0',
-            width: '100%', maxWidth: 480, padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))',
+            background: '#FFFFFF',
+            borderRadius: '22px 22px 0 0',
+            width: '100%',
+            maxWidth: 480,
+            padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))',
+            boxShadow: '0 -4px 24px rgba(0,0,0,.08)',
           }}>
-            <div style={{ width: 36, height: 4, background: 'var(--border-custom)', borderRadius: 4, margin: '0 auto 20px' }} />
-            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 4 }}>@{user.username}</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 20 }}>Akun NutriLog</div>
+            <div style={{ width: 36, height: 4, background: '#E5E7EB', borderRadius: 4, margin: '0 auto 20px' }} />
+            <div style={{ fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 4, fontFamily: "'Montserrat', sans-serif" }}>@{user.username}</div>
+            <div style={{ color: C.muted, fontSize: 12, marginBottom: 20 }}>Akun Gizku</div>
 
             <button onClick={() => { setShowUserMenu(false); setShowReport(true); setReportDone(false) }} style={{
               width: '100%', padding: '13px 16px', borderRadius: 13, marginBottom: 8,
-              background: 'var(--surface2)', border: '1px solid var(--border-custom)',
-              color: 'var(--text)', fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left',
+              background: '#F9FAFB', border: `1px solid ${C.border}`,
+              color: C.text, fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left',
             }}>
               🚩 Kirim Laporan / Masukan
             </button>
 
             <button onClick={logout} style={{
               width: '100%', padding: '13px 16px', borderRadius: 13,
-              background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.2)',
-              color: '#F87171', fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left',
+              background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)',
+              color: C.red, fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left',
             }}>
               🚶 Keluar
             </button>
@@ -275,31 +348,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* ── REPORT OVERLAY ── */}
       {showReport && (
         <div onClick={() => setShowReport(false)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.78)', zIndex: 100,
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 100,
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         }}>
           <div onClick={e => e.stopPropagation()} style={{
-            background: 'var(--surface)', borderRadius: '22px 22px 0 0',
-            width: '100%', maxWidth: 480, padding: '20px 20px calc(24px + env(safe-area-inset-bottom, 0px))',
+            background: '#FFFFFF',
+            borderRadius: '22px 22px 0 0',
+            width: '100%', maxWidth: 480,
+            padding: '20px 20px calc(24px + env(safe-area-inset-bottom, 0px))',
             maxHeight: '80vh', overflowY: 'auto',
+            boxShadow: '0 -4px 24px rgba(0,0,0,.08)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>🚩 Kirim Laporan</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: C.text, fontFamily: "'Montserrat', sans-serif" }}>🚩 Kirim Laporan</div>
               <button onClick={() => setShowReport(false)} style={{
-                background: 'var(--surface2)', border: '1px solid var(--border-custom)',
-                borderRadius: 9, padding: '6px 12px', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                background: '#F9FAFB', border: `1px solid ${C.border}`,
+                borderRadius: 9, padding: '6px 12px', color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer',
               }}>✕ Tutup</button>
             </div>
 
             {reportDone ? (
               <div style={{ textAlign: 'center', padding: '24px 0' }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-                <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 8 }}>Laporan Terkirim!</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Terima kasih atas masukan kamu.</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 8, fontFamily: "'Montserrat', sans-serif" }}>Laporan Terkirim!</div>
+                <div style={{ color: C.muted, fontSize: 13 }}>Terima kasih atas masukan kamu.</div>
                 <button onClick={() => setReportDone(false)} style={{
                   marginTop: 16, padding: '10px 20px', borderRadius: 12,
-                  background: 'var(--surface2)', border: '1px solid var(--border-custom)',
-                  color: 'var(--text)', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                  background: '#F9FAFB', border: `1px solid ${C.border}`,
+                  color: C.text, fontWeight: 600, fontSize: 13, cursor: 'pointer',
                 }}>Kirim Laporan Lain</button>
               </div>
             ) : (
@@ -307,23 +383,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <textarea
                   value={reportMsg}
                   onChange={e => setReportMsg(e.target.value.slice(0, 2000))}
-                  placeholder="Ceritakan kendalamu atau berikan masukan untuk NutriLog..."
+                  placeholder="Ceritakan kendalamu atau berikan masukan untuk Gizku..."
                   rows={6}
                   style={{
-                    width: '100%', background: 'var(--surface2)', border: '1px solid var(--border2)',
-                    borderRadius: 12, padding: '12px 14px', color: 'var(--text)', fontSize: 14,
+                    width: '100%', background: '#F9FAFB', border: `1px solid ${C.border}`,
+                    borderRadius: 12, padding: '12px 14px', color: C.text, fontSize: 14,
                     outline: 'none', resize: 'none', boxSizing: 'border-box', marginBottom: 8,
+                    fontFamily: "'Inter', sans-serif",
                   }}
                 />
-                <div style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 11, marginBottom: 12 }}>
+                <div style={{ textAlign: 'right', color: C.muted, fontSize: 11, marginBottom: 12 }}>
                   {reportMsg.length}/2000
                 </div>
                 <button onClick={submitReport} disabled={reportSending || !reportMsg.trim()} style={{
                   width: '100%', padding: 14, borderRadius: 13,
-                  background: 'var(--accent-custom)', color: '#081520',
+                  background: C.green, color: '#FFFFFF',
                   fontWeight: 700, fontSize: 15, border: 'none',
                   cursor: reportSending ? 'not-allowed' : 'pointer',
                   opacity: reportSending || !reportMsg.trim() ? 0.6 : 1,
+                  fontFamily: "'Inter', sans-serif",
                 }}>
                   {reportSending ? '⏳ Mengirim...' : '📤 Kirim Laporan'}
                 </button>
