@@ -35,6 +35,7 @@ export default async function UsersPage() {
               <th className="text-left px-4 py-3">Total Meal</th>
               <th className="text-left px-4 py-3">Hari Ini</th>
               <th className="text-left px-4 py-3">Bergabung</th>
+              <th className="text-left px-4 py-3">Last Login</th>
               <th className="text-left px-4 py-3">Aksi</th>
             </tr>
           </thead>
@@ -62,7 +63,20 @@ export default async function UsersPage() {
                 </td>
                 <td className="px-4 py-3 tabular-nums text-[#111827]">{u.totalMeals}</td>
                 <td className="px-4 py-3 tabular-nums text-[#111827]">{u.todayUsage}</td>
-                <td className="px-4 py-3 text-[#6B7280]">{fmtDateTime(u.createdAt)}</td>
+                <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap">{fmtDateTime(u.createdAt)}</td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {u.lastLoginAt
+                    ? (
+                      <span
+                        title={fmtDateTime(u.lastLoginAt)}
+                        className="text-[#111827] tabular-nums"
+                      >
+                        {fmtDateTime(u.lastLoginAt)}
+                      </span>
+                    )
+                    : <span className="italic text-xs text-[#9CA3AF]">Belum pernah</span>
+                  }
+                </td>
                 <td className="px-4 py-3"><UserActions user={u} globalLimit={globalLimit} /></td>
               </tr>
             ))}

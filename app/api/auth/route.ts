@@ -4,7 +4,7 @@ import { users } from '@/drizzle/schema'
 import { hashPassword, signUserToken, verifyToken, extractToken } from '@/lib/auth'
 import { ok, err, setCors } from '@/lib/utils'
 import { checkMaintenance, maintenanceResponse } from '@/lib/maintenance'
-import { eq, or } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
@@ -18,7 +18,6 @@ export async function OPTIONS() {
 export async function POST(req: NextRequest) {
   const action = req.nextUrl.searchParams.get('action')
 
-  // ── Maintenance check (blokir login & register, bukan verify) ────────────
   if (action === 'login' || action === 'register') {
     const m = await checkMaintenance()
     if (m.enabled) return maintenanceResponse(m.title, m.description)
@@ -34,7 +33,6 @@ export async function POST(req: NextRequest) {
     const trimmedEmail = email.trim().toLowerCase()
     if (!isValidEmail(trimmedEmail)) return err('Format email tidak valid')
 
-    // Cek duplikat email
     const [existingEmail] = await db.select({ id: users.id })
       .from(users).where(eq(users.email, trimmedEmail)).limit(1)
     if (existingEmail) return err('Email sudah digunakan', 409)
@@ -51,7 +49,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // LOGIN
+  // LOGIN — update last_login_at on every successful login
   if (action === 'login') {
     const { username, password } = await req.json()
     if (!username || !password) return err('Username dan password diperlukan')
@@ -61,6 +59,13 @@ export async function POST(req: NextRequest) {
     if (!user.isActive) return err('Akun tidak aktif', 403)
     const hash = await hashPassword(password)
     if (hash !== user.passwordHash) return err('Username atau password salah', 401)
+
+    // Record login timestamp (fire-and-forget — tidak boleh gagalkan login)
+    db.update(users)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(users.id, user.id))
+      .catch(e => console.error('[auth] failed to update lastLoginAt', e))
+
     const token = await signUserToken({ userId: user.id, username: user.username })
     return ok({ token, user: { id: user.id, username: user.username, dailyLimit: user.dailyLimit } })
   }

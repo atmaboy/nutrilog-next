@@ -18,6 +18,7 @@ export const users = pgTable('users', {
   email:        text('email').unique(),
   dailyLimit:   integer('daily_limit'),
   isActive:     boolean('is_active').default(true).notNull(),
+  lastLoginAt:  timestamp('last_login_at', { withTimezone: true }),
   createdAt:    timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt:    timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, t => ({ usernameIdx: index('idx_users_username').on(t.username) }))
