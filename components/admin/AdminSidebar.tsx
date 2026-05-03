@@ -1,42 +1,119 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import ThemeToggle from './ThemeToggle'
 
 const nav = [
-  { href:'/admin',         label:'Dashboard',  icon:'📊' },
-  { href:'/admin/users',   label:'User',       icon:'👥' },
-  { href:'/admin/reports', label:'Laporan',    icon:'📣' },
-  { href:'/admin/config',  label:'Pengaturan', icon:'⚙️' },
+  {
+    href: '/admin',
+    label: 'Dashboard',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/admin/users',
+    label: 'User',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        <path d="M21 21v-2a4 4 0 0 0-3-3.87"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/admin/reports',
+    label: 'Laporan',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/admin/config',
+    label: 'Pengaturan',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93A10 10 0 1 0 4.93 19.07 10 10 0 0 0 19.07 4.93z"/>
+      </svg>
+    ),
+  },
 ]
 
-export default function AdminSidebar() {
-  const pathname=usePathname(); const router=useRouter()
-  function logout(){ document.cookie='nl_admin_token=; path=/; max-age=0'; router.push('/admin/login') }
+function GizkuLogo() {
   return (
-    <aside className="w-60 shrink-0 border-r bg-sidebar text-sidebar-foreground flex flex-col">
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-sidebar-border">
-        <span className="text-2xl">🥗</span>
-        <span className="font-bold text-base">NutriLog</span>
-        <span className="ml-auto text-xs bg-sidebar-accent text-sidebar-accent-foreground px-2 py-0.5 rounded-full">Admin</span>
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="25" height="25" rx="10" fill="#EAFBF1" stroke="#BBF7D0"/>
+      <path d="M8 12.5C8 16.09 10.91 19 14.5 19H18.5C18.78 19 19 18.78 19 18.5C19 18.22 18.78 18 18.5 18H14.5C11.46 18 9 15.54 9 12.5V11.75C9 11.34 9.34 11 9.75 11H20.25C20.66 11 21 11.34 21 11.75V12.5C21 13.33 20.33 14 19.5 14H18" stroke="#2ECC71" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M11 9C11.6 7.8 12.7 7 14 7C15.1 7 16.1 7.6 16.7 8.5" stroke="#2ECC71" strokeWidth="1.8" strokeLinecap="round"/>
+      <path d="M13 14.2L14.4 15.6L17.4 12.6" stroke="#111827" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+export default function AdminSidebar() {
+  const pathname = usePathname()
+  const router = useRouter()
+
+  function logout() {
+    document.cookie = 'nl_admin_token=; path=/; max-age=0'
+    router.push('/admin/login')
+  }
+
+  return (
+    <aside className="w-60 shrink-0 border-r border-[#E5E7EB] bg-white flex flex-col">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-[#E5E7EB]">
+        <GizkuLogo />
+        <div>
+          <span className="font-semibold text-[15px] text-[#111827] tracking-[-0.01em]">Gizku</span>
+          <p className="text-[11px] text-[#6B7280] leading-none mt-0.5">AI Nutrition Companion</p>
+        </div>
+        <span className="ml-auto text-[11px] bg-[#D4F5E4] text-[#1F9D57] px-2 py-0.5 rounded-full font-medium">Admin</span>
       </div>
+
+      {/* Nav */}
       <nav className="flex-1 py-4 space-y-1 px-3">
-        {nav.map(n=>{
-          const active=pathname===n.href||(n.href!=='/admin'&&pathname.startsWith(n.href))
+        {nav.map(n => {
+          const active = pathname === n.href || (n.href !== '/admin' && pathname.startsWith(n.href))
           return (
-            <Link key={n.href} href={n.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                ${active?'bg-sidebar-primary text-sidebar-primary-foreground':'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'}`}>
-              <span>{n.icon}</span>{n.label}
+            <Link
+              key={n.href}
+              href={n.href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                active
+                  ? 'bg-[#D4F5E4] text-[#1F9D57]'
+                  : 'text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827]'
+              }`}
+            >
+              <span className={active ? 'text-[#2ECC71]' : 'text-[#9CA3AF]'}>{n.icon}</span>
+              {n.label}
             </Link>
           )
         })}
       </nav>
-      <div className="px-3 py-4 border-t border-sidebar-border flex items-center gap-2">
-        <button onClick={logout} className="flex-1 text-xs text-left text-sidebar-foreground/60 hover:text-destructive px-3 py-2 rounded-lg hover:bg-sidebar-accent transition-colors">
-          🚪 Logout
+
+      {/* Footer */}
+      <div className="px-3 py-4 border-t border-[#E5E7EB]">
+        <button
+          onClick={logout}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-[#6B7280] hover:text-red-500 hover:bg-red-50 transition-colors"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Logout
         </button>
-        <ThemeToggle />
       </div>
     </aside>
   )
