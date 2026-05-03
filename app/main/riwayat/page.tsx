@@ -28,7 +28,6 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 }
 
-// ── Gizku color tokens
 const C = {
   bg: '#F9FAFB',
   white: '#FFFFFF',
@@ -37,7 +36,6 @@ const C = {
   muted: '#6B7280',
   green: '#2ECC71',
   greenDim: '#D4F5E4',
-  // Summary card tokens
   summaryBg: '#F0FDF4',
   summaryBorder: '#BBF7D0',
   summaryPillBg: '#D4F5E4',
@@ -48,7 +46,6 @@ const C = {
   purple: '#9B8EC4',
 }
 
-// ── Tiny SVG icons for nutrition summary
 const IconFire = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
     <path d="M12 2C12 2 7 8 7 13a5 5 0 0 0 10 0c0-3-2-6-2-6s-1 3-3 3c-1 0-2-1-2-2 0-2 2-6 2-8z" fill="#FF8A65"/>
@@ -75,16 +72,89 @@ const IconDrop = () => (
   </svg>
 )
 
+// ── Skeleton block component
+function SkeletonBlock({ height, radius = 12, width = '100%' }: { height: number; radius?: number; width?: string }) {
+  return (
+    <div style={{
+      height,
+      width,
+      borderRadius: radius,
+      background: 'linear-gradient(90deg, #F3F4F6 25%, #E9EAEC 50%, #F3F4F6 75%)',
+      backgroundSize: '200% 100%',
+      animation: 'shimmer 1.4s ease-in-out infinite',
+    }} />
+  )
+}
+
+// ── Pagination skeleton (mirrors real layout)
+function PaginationSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Date header skeleton */}
+      <SkeletonBlock height={14} width="40%" radius={6} />
+      {/* Summary card skeleton */}
+      <div style={{
+        background: '#F6FDF8',
+        border: '1.5px solid #D1FAE5',
+        borderRadius: 20,
+        padding: '12px 16px 14px',
+      }}>
+        <SkeletonBlock height={22} width="38%" radius={999} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 12 }}>
+          {[0,1,2,3].map(i => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <SkeletonBlock height={14} width="14px" radius={999} />
+              <SkeletonBlock height={18} width="60%" radius={6} />
+              <SkeletonBlock height={11} width="50%" radius={4} />
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Meal card skeletons */}
+      {[0,1,2].map(i => (
+        <div key={i} style={{
+          background: C.white,
+          border: `1px solid ${C.border}`,
+          borderRadius: 16,
+          padding: '13px 16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+        }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <SkeletonBlock height={14} width={`${65 + i * 8}%`} radius={6} />
+            <SkeletonBlock height={11} width="35%" radius={4} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+            <SkeletonBlock height={14} width="36px" radius={5} />
+            <SkeletonBlock height={10} width="24px" radius={4} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function RiwayatPage() {
   const router = useRouter()
   const [history, setHistory] = useState<HistoryData | null>(null)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [paging, setPaging] = useState(false)   // ← true saat Next/Prev diklik
+  const [contentVisible, setContentVisible] = useState(true)
   const [modalMeal, setModalMeal] = useState<Meal | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const load = useCallback(async (p: number) => {
-    setLoading(true)
+  const load = useCallback(async (p: number, isPaging = false) => {
+    if (isPaging) {
+      // fade-out dulu, lalu ganti data
+      setPaging(true)
+      setContentVisible(false)
+      await new Promise(r => setTimeout(r, 180)) // durasi fade-out
+    } else {
+      setLoading(true)
+    }
     try {
       const res = await fetch(`/api/history?action=list&page=${p}&per_page=10`, { headers: authHeaders() })
       if (res.status === 401) { router.replace('/login'); return }
@@ -93,6 +163,11 @@ export default function RiwayatPage() {
       setPage(p)
     } finally {
       setLoading(false)
+      setPaging(false)
+      // fade-in setelah data baru masuk
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setContentVisible(true))
+      })
     }
   }, [router])
 
@@ -121,23 +196,44 @@ export default function RiwayatPage() {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
+      <style>{`
+        @keyframes shimmer {
+          0%   { background-position: 200% 0 }
+          100% { background-position: -200% 0 }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1 }
+          50%       { opacity: .5 }
+        }
+        @keyframes slideUp {
+          from { transform: translateY(100%); opacity: 0 }
+          to   { transform: translateY(0);    opacity: 1 }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg) }
+        }
+      `}</style>
 
-      {/* Skeleton loader */}
+      {/* ── Initial skeleton (first load, no data yet) */}
       {loading && !history && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[1, 2, 3].map(i => (
             <div key={i} style={{
               height: 76,
               borderRadius: 20,
-              background: '#F3F4F6',
-              animation: 'pulse 1.5s ease-in-out infinite',
+              background: 'linear-gradient(90deg, #F3F4F6 25%, #E9EAEC 50%, #F3F4F6 75%)',
+              backgroundSize: '200% 100%',
+              animation: 'shimmer 1.4s ease-in-out infinite',
             }} />
           ))}
         </div>
       )}
 
-      {/* Empty state */}
-      {history && history.meals.length === 0 && (
+      {/* ── Paging skeleton (Next/Prev clicked, data already exists) */}
+      {paging && <PaginationSkeleton />}
+
+      {/* ── Empty state */}
+      {!paging && history && history.meals.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🥗</div>
           <div style={{ fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 6 }}>Belum Ada Catatan Makan</div>
@@ -153,8 +249,12 @@ export default function RiwayatPage() {
         </div>
       )}
 
-      {history && history.meals.length > 0 && (
-        <>
+      {/* ── Main content (fade in/out on page change) */}
+      {!paging && history && history.meals.length > 0 && (
+        <div style={{
+          opacity: contentVisible ? 1 : 0,
+          transition: 'opacity 220ms ease',
+        }}>
           <div style={{ color: C.muted, fontSize: 12, marginBottom: 14 }}>
             {history.total} total catatan
           </div>
@@ -180,7 +280,7 @@ export default function RiwayatPage() {
                   {fmtDate(date + 'T00:00:00')}
                 </div>
 
-                {/* ── SUMMARY CARD — green-tinted, clearly distinct from meal cards */}
+                {/* Summary card */}
                 <div style={{
                   background: C.summaryBg,
                   border: `1.5px solid ${C.summaryBorder}`,
@@ -188,7 +288,6 @@ export default function RiwayatPage() {
                   padding: '12px 16px 14px',
                   marginBottom: 10,
                 }}>
-                  {/* Label pill */}
                   <div style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -207,12 +306,7 @@ export default function RiwayatPage() {
                     </span>
                   </div>
 
-                  {/* 4-column nutrition grid */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 4,
-                  }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
                     {[
                       { icon: <IconFire />, val: totalKcal, label: 'Kalori' },
                       { icon: <IconDumbbell />, val: totalP.toFixed(1) + 'g', label: 'Protein' },
@@ -228,7 +322,7 @@ export default function RiwayatPage() {
                   </div>
                 </div>
 
-                {/* ── MEAL CARDS — white, neutral */}
+                {/* Meal cards */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {meals.map(meal => (
                     <div
@@ -249,29 +343,19 @@ export default function RiwayatPage() {
                       onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        {/* Nama makanan */}
                         <div style={{
-                          fontWeight: 600,
-                          fontSize: 14,
-                          color: C.text,
-                          marginBottom: 3,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 3,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         }}>
                           {meal.dishNames.length > 0 ? meal.dishNames.join(', ') : 'Makanan'}
                         </div>
-                        {/* Sub-info */}
                         <div style={{ fontSize: 12, color: C.muted }}>
                           {fmtTime(meal.loggedAt)} · {meal.dishNames.length} menu
                         </div>
                       </div>
-                      {/* Kalori + chevron */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>
-                            {meal.totalCalories}
-                          </div>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{meal.totalCalories}</div>
                           <div style={{ fontSize: 10, color: C.muted }}>kkal</div>
                         </div>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -285,26 +369,77 @@ export default function RiwayatPage() {
             )
           })}
 
-          {/* Pagination */}
+          {/* ── Pagination buttons */}
           {history.totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, paddingTop: 8 }}>
-              <button disabled={page === 1} onClick={() => load(page - 1)} style={{
-                padding: '9px 16px', borderRadius: 12, background: C.white,
-                border: `1px solid ${C.border}`, color: C.text, fontSize: 13,
-                cursor: page === 1 ? 'not-allowed' : 'pointer', opacity: page === 1 ? 0.4 : 1,
-              }}>← Prev</button>
-              <span style={{ display: 'flex', alignItems: 'center', color: C.muted, fontSize: 13 }}>
-                {page} / {history.totalPages}
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, paddingTop: 8 }}>
+
+              {/* Prev */}
+              <button
+                disabled={page === 1 || paging}
+                onClick={() => load(page - 1, true)}
+                style={{
+                  padding: '9px 16px', borderRadius: 12,
+                  background: C.white,
+                  border: `1px solid ${C.border}`,
+                  color: C.text, fontSize: 13,
+                  cursor: (page === 1 || paging) ? 'not-allowed' : 'pointer',
+                  opacity: page === 1 ? 0.4 : 1,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  transition: 'opacity .15s',
+                }}
+              >
+                ← Prev
+              </button>
+
+              {/* Page indicator — shows spinner saat loading */}
+              <span style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                color: C.muted, fontSize: 13, minWidth: 56, justifyContent: 'center',
+              }}>
+                {paging ? (
+                  <svg
+                    width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round"
+                    style={{ animation: 'spin .7s linear infinite', flexShrink: 0 }}
+                  >
+                    <path d="M12 2 a10 10 0 0 1 10 10" />
+                  </svg>
+                ) : (
+                  `${page} / ${history.totalPages}`
+                )}
               </span>
-              <button disabled={page === history.totalPages} onClick={() => load(page + 1)} style={{
-                padding: '9px 16px', borderRadius: 12, background: C.white,
-                border: `1px solid ${C.border}`, color: C.text, fontSize: 13,
-                cursor: page === history.totalPages ? 'not-allowed' : 'pointer',
-                opacity: page === history.totalPages ? 0.4 : 1,
-              }}>Next →</button>
+
+              {/* Next */}
+              <button
+                disabled={page === history.totalPages || paging}
+                onClick={() => load(page + 1, true)}
+                style={{
+                  padding: '9px 16px', borderRadius: 12,
+                  background: paging ? C.bg : C.white,
+                  border: `1px solid ${paging ? C.border : C.border}`,
+                  color: paging ? C.muted : C.text, fontSize: 13,
+                  cursor: (page === history.totalPages || paging) ? 'not-allowed' : 'pointer',
+                  opacity: page === history.totalPages ? 0.4 : 1,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  transition: 'all .15s',
+                }}
+              >
+                {paging ? (
+                  <>
+                    <svg
+                      width="13" height="13" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+                      style={{ animation: 'spin .7s linear infinite' }}
+                    >
+                      <path d="M12 2 a10 10 0 0 1 10 10" />
+                    </svg>
+                    Memuat…
+                  </>
+                ) : 'Next →'}
+              </button>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* ── MODAL DETAIL ── */}
@@ -321,7 +456,6 @@ export default function RiwayatPage() {
             WebkitOverflowScrolling: 'touch',
             boxShadow: '0 -8px 32px rgba(0,0,0,.1)',
           }}>
-            {/* Drag handle + close */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 8px' }}>
               <div style={{ width: 36, height: 4, background: C.border, borderRadius: 4 }} />
               <button onClick={() => setModalMeal(null)} style={{
@@ -338,7 +472,6 @@ export default function RiwayatPage() {
                 {fmtDate(modalMeal.loggedAt)} · {fmtTime(modalMeal.loggedAt)}
               </div>
 
-              {/* Foto makanan */}
               {modalMeal.imageUrl && (
                 <div style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
                   <img
@@ -349,16 +482,9 @@ export default function RiwayatPage() {
                 </div>
               )}
 
-              {/* Total nutrisi 4 kolom */}
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 8,
-                marginBottom: 16,
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                borderRadius: 20,
-                padding: '12px 8px',
+                display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16,
+                background: C.bg, border: `1px solid ${C.border}`, borderRadius: 20, padding: '12px 8px',
               }}>
                 {[
                   { icon: <IconFire />, val: String(modalMeal.totalCalories), label: 'kkal' },
@@ -374,7 +500,6 @@ export default function RiwayatPage() {
                 ))}
               </div>
 
-              {/* Per-dish detail */}
               {modalMeal.rawAnalysis?.dishes && (
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 10 }}>
@@ -382,11 +507,8 @@ export default function RiwayatPage() {
                   </div>
                   {modalMeal.rawAnalysis.dishes.map((d, i) => (
                     <div key={i} style={{
-                      background: C.bg,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 14,
-                      padding: '10px 14px',
-                      marginBottom: 8,
+                      background: C.bg, border: `1px solid ${C.border}`,
+                      borderRadius: 14, padding: '10px 14px', marginBottom: 8,
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <div>
@@ -407,14 +529,9 @@ export default function RiwayatPage() {
 
               {modalMeal.rawAnalysis?.notes && (
                 <div style={{
-                  background: '#F0FDF4',
-                  border: '1px solid #BBF7D0',
-                  borderRadius: 12,
-                  padding: '10px 14px',
-                  fontSize: 13,
-                  color: C.muted,
-                  lineHeight: 1.7,
-                  marginBottom: 16,
+                  background: '#F0FDF4', border: '1px solid #BBF7D0',
+                  borderRadius: 12, padding: '10px 14px',
+                  fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 16,
                 }}>
                   💡 {modalMeal.rawAnalysis.notes}
                 </div>
