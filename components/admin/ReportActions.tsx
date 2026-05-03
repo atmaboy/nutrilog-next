@@ -24,10 +24,10 @@ export default function ReportActions({ id, status }: { id: string; status: stri
               body: JSON.stringify({ id, status: 'resolved' }),
             })
             r.ok
-              ? (toast.success('Selesai'), router.refresh())
-              : toast.error('Gagal')
+              ? (toast.success('Laporan ditandai selesai'), router.refresh())
+              : toast.error('Gagal memperbarui laporan')
           }}
-          className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-green-700"
+          className="text-xs bg-[#2ECC71] text-white px-3 py-1.5 rounded-lg font-medium hover:bg-[#28B765] transition"
         >
           ✅ Selesai
         </button>
@@ -40,10 +40,10 @@ export default function ReportActions({ id, status }: { id: string; status: stri
             headers: { Authorization: `Bearer ${tok()}` },
           })
           r.ok
-            ? (toast.success('Dihapus'), router.refresh())
-            : toast.error('Gagal')
+            ? (toast.success('Laporan dihapus'), router.refresh())
+            : toast.error('Gagal menghapus laporan')
         }}
-        className="text-xs text-destructive border border-destructive/30 px-3 py-1.5 rounded-lg hover:bg-destructive/5"
+        className="text-xs text-red-500 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition"
       >
         🗑
       </button>

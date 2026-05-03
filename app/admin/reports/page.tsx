@@ -11,9 +11,9 @@ export default async function ReportsPage() {
   const closed = rows.filter(r => r.status !== 'open')
 
   const Table = ({ items }: { items: typeof rows }) => (
-    <div className="bg-card border rounded-xl overflow-hidden shadow-sm">
+    <div className="bg-white ring-1 ring-[#E5E7EB] rounded-xl overflow-hidden shadow-[0_1px_4px_rgba(16,24,40,0.04)]">
       <table className="w-full text-sm">
-        <thead className="bg-muted/40 text-muted-foreground text-xs uppercase tracking-wide">
+        <thead className="bg-[#F9FAFB] text-[#6B7280] text-xs uppercase tracking-wide">
           <tr>
             <th className="text-left px-4 py-3">User</th>
             <th className="text-left px-4 py-3">Pesan</th>
@@ -22,15 +22,19 @@ export default async function ReportsPage() {
           </tr>
         </thead>
         <tbody>
-          {items.map((r,i) => (
-            <tr key={r.id} className={i%2===0?'bg-background':'bg-muted/20'}>
-              <td className="px-4 py-3 text-muted-foreground">{r.username??'—'}</td>
-              <td className="px-4 py-3 max-w-sm">{r.message}</td>
-              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{fmtDateTime(r.createdAt)}</td>
+          {items.map((r, i) => (
+            <tr key={r.id} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'}>
+              <td className="px-4 py-3 text-[#6B7280]">{r.username ?? '—'}</td>
+              <td className="px-4 py-3 max-w-sm text-[#111827]">{r.message}</td>
+              <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap">{fmtDateTime(r.createdAt)}</td>
               <td className="px-4 py-3"><ReportActions id={r.id} status={r.status} /></td>
             </tr>
           ))}
-          {items.length===0&&<tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Tidak ada laporan</td></tr>}
+          {items.length === 0 && (
+            <tr>
+              <td colSpan={4} className="px-4 py-8 text-center text-[#6B7280]">Tidak ada laporan</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -38,9 +42,15 @@ export default async function ReportsPage() {
 
   return (
     <div className="space-y-8 max-w-5xl">
-      <h1 className="text-2xl font-bold">Laporan User</h1>
-      <div><h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Open ({open.length})</h2><Table items={open}/></div>
-      <div><h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Selesai ({closed.length})</h2><Table items={closed}/></div>
+      <h1 className="text-2xl font-bold text-[#111827]">Laporan User</h1>
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[#6B7280] mb-3">Open ({open.length})</h2>
+        <Table items={open} />
+      </div>
+      <div>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[#6B7280] mb-3">Selesai ({closed.length})</h2>
+        <Table items={closed} />
+      </div>
     </div>
   )
 }
