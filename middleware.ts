@@ -5,8 +5,19 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || 'fallback-change-in-production-32ch'
 )
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
+
+  // ── Handle CORS preflight globally for all /api/* routes ─────────────────
+  if (req.method === 'OPTIONS' && pathname.startsWith('/api/')) {
+    return new Response(null, { status: 204, headers: CORS_HEADERS })
+  }
 
   // ── Admin routes ─────────────────────────────────────────────────────────
   if (pathname === '/admin/login') return NextResponse.next()
@@ -29,17 +40,20 @@ export async function middleware(req: NextRequest) {
   if (pathname === '/maintenance') return NextResponse.next()
 
   // ── Untuk halaman user: cek header x-maintenance yang di-set API ─────────
-  // Pendekatan hybrid: halaman redirect via cookie flag yang di-set saat
-  // frontend pertama kali gagal karena 503 maintenance dari API.
-  // Middleware ringan — tidak fetch DB, cukup cek cookie.
   const maintenanceCookie = req.cookies.get('nl_maintenance')?.value
   const isPageRoute = !pathname.startsWith('/api/')
 
   if (isPageRoute && maintenanceCookie === '1') {
-    // Jangan redirect loop jika sudah di /maintenance
     if (pathname !== '/maintenance') {
       return NextResponse.redirect(new URL('/maintenance', req.url))
     }
+  }
+
+  // ── Inject CORS headers on all /api/* responses ───────────────────────────
+  if (pathname.startsWith('/api/')) {
+    const res = NextResponse.next()
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => res.headers.set(k, v))
+    return res
   }
 
   return NextResponse.next()
@@ -51,10 +65,6 @@ export const config = {
     '/login',
     '/main/:path*',
     '/maintenance',
-    '/api/auth/:path*',
-    '/api/analyze/:path*',
-    '/api/history/:path*',
-    '/api/report/:path*',
-    '/api/user/:path*',
+    '/api/:path*',
   ],
 }
