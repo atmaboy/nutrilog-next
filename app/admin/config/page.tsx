@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import MigrateButton from '@/components/admin/MigrateButton'
 
 export default function ConfigPage() {
   const [token, setToken]       = useState('')
@@ -149,15 +148,6 @@ export default function ConfigPage() {
             {loading === 'update_maintenance' ? '…' : 'Simpan Maintenance'}
           </BtnPrimary>
         </div>
-      </Section>
-
-      {/* Migrasi */}
-      <Section title="Migrasi Data dari Supabase KV Store">
-        <p className="text-sm text-[#6B7280] mb-3">
-          Pindahkan data lama dari <strong className="text-[#111827]">Supabase KV Store</strong> ke PostgreSQL.
-          Jalankan <strong className="text-[#111827]">sekali</strong> setelah deploy pertama.
-        </p>
-        <MigrateButton token={token} />
       </Section>
     </div>
   )

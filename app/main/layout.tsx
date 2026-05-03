@@ -153,7 +153,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     orangeDim: '#FEF3C7',
   }
 
-  // SVG icons — consistent with backoffice sidebar
+  // SVG icons
+  const IconMail = (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+      <polyline points="22,6 12,13 2,6"/>
+    </svg>
+  )
+
   const IconReport = (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -218,7 +225,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div onClick={() => setShowUserMenu(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.white, border: `1px solid ${C.border}`, borderRadius: 999, padding: '5px 10px 5px 7px', cursor: 'pointer', flexShrink: 0, position: 'relative' }}>
                 <div style={{ width: 24, height: 24, borderRadius: '50%', background: C.green, color: '#fff', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Montserrat', sans-serif" }}>{initial}</div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: C.text, maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.username}</span>
-                {/* Dot indicator kalau belum ada email */}
                 {userEmail === null && (
                   <span style={{ position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: '50%', background: C.orange, border: `1.5px solid ${C.white}` }} />
                 )}
@@ -262,12 +268,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div style={{ marginBottom: 20 }}>
               {userEmail ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ color: C.muted, fontSize: 13 }}>✉️ {userEmail}</span>
+                  <span style={{ color: C.muted, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', color: C.muted }}>{IconMail}</span>
+                    {userEmail}
+                  </span>
                   <button onClick={() => { setShowEmailForm(f => !f); setEmailInput(userEmail ?? ''); setEmailError('') }} style={{ fontSize: 12, color: C.green, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>Ubah</button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: C.orangeDim, border: `1px solid rgba(245,158,11,.25)`, borderRadius: 10, padding: '8px 12px' }}>
-                  <span style={{ color: '#92400E', fontSize: 13, fontWeight: 500 }}>✉️ Tambah Email</span>
+                  <span style={{ color: '#92400E', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', color: '#92400E' }}>{IconMail}</span>
+                    Tambah Email
+                  </span>
                   <button onClick={() => { setShowEmailForm(f => !f); setEmailInput(''); setEmailError('') }} style={{ fontSize: 12, color: C.orange, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>+ Tambah</button>
                 </div>
               )}
