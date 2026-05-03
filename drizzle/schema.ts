@@ -15,6 +15,7 @@ export const users = pgTable('users', {
   id:           uuid('id').primaryKey().defaultRandom(),
   username:     text('username').unique().notNull(),
   passwordHash: text('password_hash').notNull(),
+  email:        text('email').unique(),
   dailyLimit:   integer('daily_limit'),
   isActive:     boolean('is_active').default(true).notNull(),
   createdAt:    timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

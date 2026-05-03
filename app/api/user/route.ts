@@ -6,6 +6,10 @@ import { getGlobalLimit } from '@/lib/admin'
 import { ok, err, setCors, todayISO } from '@/lib/utils'
 import { eq, and, desc, count, sum } from 'drizzle-orm'
 
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
+
 export async function OPTIONS() {
   const h = new Headers(); setCors(h)
   return new Response(null, { status: 204, headers: h })
@@ -30,6 +34,7 @@ export async function GET(req: NextRequest) {
   if (action === 'profile') {
     const [userData] = await db.select({
       id: users.id, username: users.username,
+      email: users.email,
       dailyLimit: users.dailyLimit, createdAt: users.createdAt,
     }).from(users).where(eq(users.id, user.userId)).limit(1)
 
@@ -84,6 +89,23 @@ export async function POST(req: NextRequest) {
       .where(eq(users.id, user.userId))
 
     return ok({ message: 'Password berhasil diubah' })
+  }
+
+  if (action === 'update_email') {
+    const { email } = await req.json()
+    if (!email) return err('Email diperlukan')
+    const trimmedEmail = email.trim().toLowerCase()
+    if (!isValidEmail(trimmedEmail)) return err('Format email tidak valid')
+
+    // Cek duplikat email, exclude user sendiri
+    const [existing] = await db.select({ id: users.id })
+      .from(users).where(eq(users.email, trimmedEmail)).limit(1)
+    if (existing && existing.id !== user.userId) return err('Email sudah digunakan', 409)
+
+    await db.update(users).set({ email: trimmedEmail, updatedAt: new Date() })
+      .where(eq(users.id, user.userId))
+
+    return ok({ message: 'Email berhasil disimpan' })
   }
 
   return err('Action tidak dikenal')

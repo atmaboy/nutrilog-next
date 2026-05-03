@@ -29,6 +29,7 @@ export default async function UsersPage() {
           <thead className="bg-[#F9FAFB] text-[#6B7280] text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-4 py-3">Username</th>
+              <th className="text-left px-4 py-3">Email</th>
               <th className="text-left px-4 py-3">Status</th>
               <th className="text-left px-4 py-3">Limit/Hari</th>
               <th className="text-left px-4 py-3">Total Meal</th>
@@ -41,6 +42,12 @@ export default async function UsersPage() {
             {usersWithStats.map((u, i) => (
               <tr key={u.id} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'}>
                 <td className="px-4 py-3 font-medium text-[#111827]">{u.username}</td>
+                <td className="px-4 py-3 text-[#6B7280]">
+                  {u.email
+                    ? <span className="text-[#111827]">{u.email}</span>
+                    : <span className="italic text-xs text-[#9CA3AF]">—</span>
+                  }
+                </td>
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                     u.isActive

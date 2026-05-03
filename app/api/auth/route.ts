@@ -4,7 +4,11 @@ import { users } from '@/drizzle/schema'
 import { hashPassword, signUserToken, verifyToken, extractToken } from '@/lib/auth'
 import { ok, err, setCors } from '@/lib/utils'
 import { checkMaintenance, maintenanceResponse } from '@/lib/maintenance'
-import { eq } from 'drizzle-orm'
+import { eq, or } from 'drizzle-orm'
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
 
 export async function OPTIONS() {
   const h = new Headers(); setCors(h)
@@ -22,14 +26,23 @@ export async function POST(req: NextRequest) {
 
   // REGISTER
   if (action === 'register') {
-    const { username, password } = await req.json()
+    const { username, password, email } = await req.json()
     if (!username || !password) return err('Username dan password diperlukan')
     if (username.length < 3) return err('Username minimal 3 karakter')
     if (password.length < 6) return err('Password minimal 6 karakter')
+    if (!email) return err('Email diperlukan')
+    const trimmedEmail = email.trim().toLowerCase()
+    if (!isValidEmail(trimmedEmail)) return err('Format email tidak valid')
+
+    // Cek duplikat email
+    const [existingEmail] = await db.select({ id: users.id })
+      .from(users).where(eq(users.email, trimmedEmail)).limit(1)
+    if (existingEmail) return err('Email sudah digunakan', 409)
+
     const hash = await hashPassword(password)
     try {
       const [user] = await db.insert(users)
-        .values({ username: username.toLowerCase().trim(), passwordHash: hash })
+        .values({ username: username.toLowerCase().trim(), passwordHash: hash, email: trimmedEmail })
         .returning({ id: users.id, username: users.username })
       const token = await signUserToken({ userId: user.id, username: user.username })
       return ok({ token, user: { id: user.id, username: user.username } })

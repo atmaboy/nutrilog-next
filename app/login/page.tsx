@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [tab, setTab] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [email, setEmail] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -28,17 +29,34 @@ export default function LoginPage() {
     }
   }, [router])
 
+  function switchTab(t: 'login' | 'register') {
+    setTab(t)
+    setError('')
+    setMaintenance(null)
+    setEmail('')
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
     setMaintenance(null)
     try {
+      if (tab === 'register') {
+        const trimmedEmail = email.trim().toLowerCase()
+        if (!trimmedEmail) { setError('Email diperlukan'); setLoading(false); return }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(trimmedEmail)) { setError('Format email tidak valid'); setLoading(false); return }
+      }
+
       const endpoint = tab === 'login' ? '/api/auth?action=login' : '/api/auth?action=register'
+      const body: Record<string, string> = { username: username.trim().toLowerCase(), password }
+      if (tab === 'register') body.email = email.trim().toLowerCase()
+
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim().toLowerCase(), password }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
 
@@ -72,6 +90,31 @@ export default function LoginPage() {
     green: '#2ECC71',
     greenDim: '#D4F5E4',
     red: '#EF4444',
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: C.bg,
+    border: `1px solid ${C.border2}`,
+    borderRadius: 12,
+    padding: '12px 14px',
+    color: C.text,
+    fontSize: 15,
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: "'Inter', sans-serif",
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    color: C.muted,
+    letterSpacing: '.5px',
+    textTransform: 'uppercase',
+    marginBottom: 5,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
   }
 
   return (
@@ -142,7 +185,7 @@ export default function LoginPage() {
           padding: 24,
           boxShadow: '0 1px 8px rgba(0,0,0,.06)',
         }}>
-          {/* Tabs login/register */}
+          {/* Tabs */}
           <div style={{
             display: 'flex',
             gap: 4,
@@ -155,7 +198,7 @@ export default function LoginPage() {
             alignItems: 'center',
           }}>
             {(['login', 'register'] as const).map(t => (
-              <button key={t} onClick={() => { setTab(t); setError(''); setMaintenance(null) }} style={{
+              <button key={t} onClick={() => switchTab(t)} style={{
                 flex: 1,
                 height: '100%',
                 borderRadius: 999,
@@ -187,27 +230,42 @@ export default function LoginPage() {
             )}
 
             <div style={{ marginBottom: 13 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>Username</div>
+              <div style={labelStyle}>Username</div>
               <input
                 type="text" value={username} onChange={e => setUsername(e.target.value)}
                 placeholder="Masukkan username" required autoFocus
-                style={{ width: '100%', background: C.bg, border: `1px solid ${C.border2}`, borderRadius: 12, padding: '12px 14px', color: C.text, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: "'Inter', sans-serif" }}
+                style={inputStyle}
               />
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>Password</div>
+            <div style={{ marginBottom: tab === 'register' ? 13 : 20 }}>
+              <div style={labelStyle}>Password</div>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="Masukkan password" required
-                  style={{ width: '100%', background: C.bg, border: `1px solid ${C.border2}`, borderRadius: 12, padding: '12px 44px 12px 14px', color: C.text, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: "'Inter', sans-serif" }}
+                  style={{ ...inputStyle, padding: '12px 44px 12px 14px' }}
                 />
                 <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16 }}>
                   {showPass ? '🙈' : '👁'}
                 </button>
               </div>
             </div>
+
+            {/* Email field — hanya tampil saat Daftar */}
+            {tab === 'register' && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={labelStyle}>
+                  Email
+                  <span style={{ color: C.red, fontWeight: 700, fontSize: 10 }}>*</span>
+                </div>
+                <input
+                  type="email" value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="contoh@email.com" required
+                  style={inputStyle}
+                />
+              </div>
+            )}
 
             <button type="submit" disabled={loading} style={{
               width: '100%', padding: 14, background: C.green, borderRadius: 13,
@@ -222,7 +280,7 @@ export default function LoginPage() {
           <div style={{ color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 1.6 }}>
             {tab === 'login' ? 'Belum punya akun? ' : 'Sudah punya akun? '}
             <span
-              onClick={() => { setTab(tab === 'login' ? 'register' : 'login'); setError(''); setMaintenance(null) }}
+              onClick={() => switchTab(tab === 'login' ? 'register' : 'login')}
               style={{ color: C.green, cursor: 'pointer', fontWeight: 600 }}
             >
               {tab === 'login' ? 'Daftar sekarang' : 'Masuk'}

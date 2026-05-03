@@ -7,6 +7,10 @@ import { ok, err, setCors } from '@/lib/utils'
 import { invalidateMaintenanceCache } from '@/lib/maintenance'
 import { eq, desc, count, sum } from 'drizzle-orm'
 
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
+
 function jsonErr(msg: string, status = 500) {
   const h = new Headers()
   setCors(h)
@@ -66,8 +70,6 @@ export async function POST(req: NextRequest) {
     }
 
     // UPDATE MAINTENANCE
-    // Bug fix: onConflictDoUpdate pakai serial id tidak reliable.
-    // Gunakan upsert manual: cek dulu apakah row ada, lalu UPDATE atau INSERT.
     if (action === 'update_maintenance') {
       const body = await req.json()
       const { enabled, title, description } = body
@@ -76,7 +78,6 @@ export async function POST(req: NextRequest) {
         .from(maintenanceConfig).limit(1)
 
       if (existing.length > 0) {
-        // Row sudah ada → UPDATE
         await db.update(maintenanceConfig)
           .set({
             enabled:     enabled     ?? false,
@@ -86,7 +87,6 @@ export async function POST(req: NextRequest) {
           })
           .where(eq(maintenanceConfig.id, existing[0].id))
       } else {
-        // Belum ada row → INSERT pertama kali
         await db.insert(maintenanceConfig).values({
           enabled:     enabled     ?? false,
           title:       title       ?? 'NutriLog sedang dalam perbaikan',
@@ -95,25 +95,37 @@ export async function POST(req: NextRequest) {
         })
       }
 
-      // Invalidate in-memory cache agar perubahan langsung berlaku
       invalidateMaintenanceCache()
-
-      return ok({ message: `Maintenance ${enabled ? 'diaktifkan' : 'dinonaktifkan'}` })
+      return ok({ message: `Mode maintenance ${enabled ? 'diaktifkan' : 'dinonaktifkan'}` })
     }
 
     // CREATE USER
     if (action === 'create_user') {
-      const { username, password, dailyLimit } = await req.json()
+      const { username, password, dailyLimit, email } = await req.json()
       if (!username || !password) return err('Username dan password diperlukan')
+      if (password.length < 6) return err('Password minimal 6 karakter')
+
+      let trimmedEmail: string | undefined
+      if (email) {
+        trimmedEmail = email.trim().toLowerCase()
+        if (!isValidEmail(trimmedEmail)) return err('Format email tidak valid')
+        const [existingEmail] = await db.select({ id: users.id })
+          .from(users).where(eq(users.email, trimmedEmail)).limit(1)
+        if (existingEmail) return err('Email sudah digunakan', 409)
+      }
+
       const { hashPassword } = await import('@/lib/auth')
       const hash = await hashPassword(password)
       try {
-        const [user] = await db.insert(users).values({
-          username: username.toLowerCase().trim(),
-          passwordHash: hash,
-          dailyLimit: dailyLimit || null,
-        }).returning()
-        return ok({ user, message: 'User berhasil dibuat' })
+        const [user] = await db.insert(users)
+          .values({
+            username: username.toLowerCase().trim(),
+            passwordHash: hash,
+            dailyLimit: dailyLimit || null,
+            email: trimmedEmail ?? null,
+          })
+          .returning({ id: users.id, username: users.username })
+        return ok({ user })
       } catch {
         return err('Username sudah digunakan', 409)
       }
@@ -121,26 +133,42 @@ export async function POST(req: NextRequest) {
 
     // UPDATE USER
     if (action === 'update_user') {
-      const { id, isActive, dailyLimit } = await req.json()
-      if (!id) return err('User ID diperlukan')
-      await db.update(users)
-        .set({ isActive, dailyLimit: dailyLimit ?? null, updatedAt: new Date() })
-        .where(eq(users.id, id))
-      return ok({ message: 'User berhasil diperbarui' })
+      const { userId, isActive, dailyLimit, email } = await req.json()
+      if (!userId) return err('userId diperlukan')
+
+      const updateData: Record<string, unknown> = { updatedAt: new Date() }
+      if (isActive !== undefined) updateData.isActive = isActive
+      if (dailyLimit !== undefined) updateData.dailyLimit = dailyLimit === '' ? null : Number(dailyLimit)
+
+      if (email !== undefined) {
+        if (email === '' || email === null) {
+          updateData.email = null
+        } else {
+          const trimmedEmail = email.trim().toLowerCase()
+          if (!isValidEmail(trimmedEmail)) return err('Format email tidak valid')
+          const [existingEmail] = await db.select({ id: users.id })
+            .from(users).where(eq(users.email, trimmedEmail)).limit(1)
+          if (existingEmail && existingEmail.id !== userId) return err('Email sudah digunakan', 409)
+          updateData.email = trimmedEmail
+        }
+      }
+
+      await db.update(users).set(updateData).where(eq(users.id, userId))
+      return ok({ message: 'User diperbarui' })
     }
 
-    // UPDATE REPORT STATUS
-    if (action === 'update_report') {
-      const { id, status } = await req.json()
-      if (!id) return err('Report ID diperlukan')
-      await db.update(reports).set({ status, updatedAt: new Date() }).where(eq(reports.id, id))
-      return ok({ message: 'Status laporan diperbarui' })
+    // DELETE USER
+    if (action === 'delete_user') {
+      const { userId } = await req.json()
+      if (!userId) return err('userId diperlukan')
+      await db.delete(users).where(eq(users.id, userId))
+      return ok({ message: 'User dihapus' })
     }
 
     return err('Action tidak dikenal')
   } catch (e) {
-    console.error('[POST /api/admin] error:', e)
-    return jsonErr(`Internal server error: ${e instanceof Error ? e.message : String(e)}`)
+    console.error('[admin POST]', e)
+    return jsonErr('Internal server error')
   }
 }
 
@@ -148,93 +176,39 @@ export async function GET(req: NextRequest) {
   try {
     const action = req.nextUrl.searchParams.get('action')
 
-    if (action === 'dashboard') {
-      const [totalUsers]  = await db.select({ c: count() }).from(users)
-      const [activeUsers] = await db.select({ c: count() }).from(users).where(eq(users.isActive, true))
-      const [totalMeals]  = await db.select({ c: count() }).from(meals)
-      const [openReports] = await db.select({ c: count() }).from(reports).where(eq(reports.status, 'open'))
-      const [totalCals]   = await db.select({ s: sum(meals.totalCalories) }).from(meals)
+    if (action === 'users') {
+      const allUsers = await db.select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        isActive: users.isActive,
+        dailyLimit: users.dailyLimit,
+        createdAt: users.createdAt,
+      }).from(users).orderBy(desc(users.createdAt))
+      return ok({ users: allUsers })
+    }
 
-      const recentUsers = await db.select({
-        id: users.id, username: users.username, isActive: users.isActive, createdAt: users.createdAt,
-      }).from(users).orderBy(desc(users.createdAt)).limit(5)
-
-      const today = new Date().toISOString().split('T')[0]
-      const todayUsage = await db.select({ c: count() }).from(dailyUsage)
-        .where(eq(dailyUsage.date, today))
-
+    if (action === 'stats') {
+      const [userCount]  = await db.select({ total: count() }).from(users)
+      const [mealCount]  = await db.select({ total: count() }).from(meals)
+      const [reportCount] = await db.select({ total: count() }).from(reports)
       return ok({
-        stats: {
-          totalUsers:    totalUsers.c,
-          activeUsers:   activeUsers.c,
-          totalMeals:    totalMeals.c,
-          openReports:   openReports.c,
-          totalCalories: totalCals.s ?? 0,
-          todayAnalyses: todayUsage[0]?.c ?? 0,
-        },
-        recentUsers,
+        users: userCount.total,
+        meals: mealCount.total,
+        reports: reportCount.total,
       })
     }
 
-    if (action === 'users') {
-      const page    = parseInt(req.nextUrl.searchParams.get('page') || '1')
-      const perPage = parseInt(req.nextUrl.searchParams.get('per_page') || '20')
-      const offset  = (page - 1) * perPage
-      const list = await db.select().from(users).orderBy(desc(users.createdAt)).limit(perPage).offset(offset)
-      const [{ c }] = await db.select({ c: count() }).from(users)
-      return ok({ users: list, total: c, page, perPage })
-    }
-
-    if (action === 'reports') {
-      const status = req.nextUrl.searchParams.get('status') || 'all'
-      const list = status === 'all'
-        ? await db.select().from(reports).orderBy(desc(reports.createdAt)).limit(50)
-        : await db.select().from(reports).where(eq(reports.status, status)).orderBy(desc(reports.createdAt)).limit(50)
-      return ok({ reports: list })
-    }
-
     if (action === 'config') {
-      const dailyLimit      = await getGlobalLimit()
-      const anthropicApiKey = await getCfg('anthropic_api_key')
-      const maintenance     = await getMaintenance()
-      return ok({ dailyLimit, anthropicApiKey: anthropicApiKey ? '••••••••' : '', maintenance })
-    }
-
-    if (action === 'user_meals') {
-      const userId = req.nextUrl.searchParams.get('user_id')
-      if (!userId) return err('User ID diperlukan')
-      const list = await db.select().from(meals).where(eq(meals.userId, userId)).orderBy(desc(meals.loggedAt)).limit(30)
-      return ok({ meals: list })
+      const globalLimit = await getGlobalLimit()
+      const apiKey      = await getCfg('anthropic_api_key')
+      const maintenance = await getMaintenance()
+      return ok({ globalLimit, apiKey: apiKey ? '••••••••' : '', maintenance })
     }
 
     return err('Action tidak dikenal')
   } catch (e) {
-    console.error('[GET /api/admin] error:', e)
-    return jsonErr(`Internal server error: ${e instanceof Error ? e.message : String(e)}`)
-  }
-}
-
-export async function DELETE(req: NextRequest) {
-  try {
-    const action = req.nextUrl.searchParams.get('action')
-
-    if (action === 'delete_user') {
-      const { id } = await req.json()
-      if (!id) return err('User ID diperlukan')
-      await db.delete(users).where(eq(users.id, id))
-      return ok({ message: 'User berhasil dihapus' })
-    }
-
-    if (action === 'delete_meal') {
-      const { id } = await req.json()
-      if (!id) return err('Meal ID diperlukan')
-      await db.delete(meals).where(eq(meals.id, id))
-      return ok({ message: 'Data makan berhasil dihapus' })
-    }
-
-    return err('Action tidak dikenal')
-  } catch (e) {
-    console.error('[DELETE /api/admin] error:', e)
-    return jsonErr(`Internal server error: ${e instanceof Error ? e.message : String(e)}`)
+    console.error('[admin GET]', e)
+    return jsonErr('Internal server error')
   }
 }
