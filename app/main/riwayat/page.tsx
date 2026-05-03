@@ -37,6 +37,11 @@ const C = {
   muted: '#6B7280',
   green: '#2ECC71',
   greenDim: '#D4F5E4',
+  // Summary card tokens
+  summaryBg: '#F0FDF4',
+  summaryBorder: '#BBF7D0',
+  summaryPillBg: '#D4F5E4',
+  summaryPillText: '#166534',
   red: '#EF4444',
   coral: '#FF6B6B',
   blue: '#6B9FD4',
@@ -175,32 +180,55 @@ export default function RiwayatPage() {
                   {fmtDate(date + 'T00:00:00')}
                 </div>
 
-                {/* Daily summary card — 4 columns */}
+                {/* ── SUMMARY CARD — green-tinted, clearly distinct from meal cards */}
                 <div style={{
-                  background: C.white,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 24,
-                  padding: '14px 16px',
+                  background: C.summaryBg,
+                  border: `1.5px solid ${C.summaryBorder}`,
+                  borderRadius: 20,
+                  padding: '12px 16px 14px',
                   marginBottom: 10,
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(4, 1fr)',
-                  gap: 4,
                 }}>
-                  {[
-                    { icon: <IconFire />, val: totalKcal, label: 'Kalori' },
-                    { icon: <IconDumbbell />, val: totalP.toFixed(1) + 'g', label: 'Protein' },
-                    { icon: <IconGrain />, val: totalK.toFixed(1) + 'g', label: 'Karbo' },
-                    { icon: <IconDrop />, val: totalL.toFixed(1) + 'g', label: 'Lemak' },
-                  ].map(({ icon, val, label }) => (
-                    <div key={label} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 22 }}>{icon}</div>
-                      <div style={{ fontWeight: 600, fontSize: 16, color: C.text, lineHeight: 1.1 }}>{val}</div>
-                      <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.1 }}>{label}</div>
-                    </div>
-                  ))}
+                  {/* Label pill */}
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    background: C.summaryPillBg,
+                    border: `1px solid ${C.summaryBorder}`,
+                    borderRadius: 999,
+                    padding: '3px 10px',
+                    marginBottom: 10,
+                  }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2C12 2 7 8 7 13a5 5 0 0 0 10 0c0-3-2-6-2-6s-1 3-3 3c-1 0-2-1-2-2 0-2 2-6 2-8z" fill="#16a34a"/>
+                    </svg>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: C.summaryPillText, letterSpacing: '.3px' }}>
+                      Ringkasan Hari Ini
+                    </span>
+                  </div>
+
+                  {/* 4-column nutrition grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: 4,
+                  }}>
+                    {[
+                      { icon: <IconFire />, val: totalKcal, label: 'Kalori' },
+                      { icon: <IconDumbbell />, val: totalP.toFixed(1) + 'g', label: 'Protein' },
+                      { icon: <IconGrain />, val: totalK.toFixed(1) + 'g', label: 'Karbo' },
+                      { icon: <IconDrop />, val: totalL.toFixed(1) + 'g', label: 'Lemak' },
+                    ].map(({ icon, val, label }) => (
+                      <div key={label} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 22 }}>{icon}</div>
+                        <div style={{ fontWeight: 600, fontSize: 16, color: C.text, lineHeight: 1.1 }}>{val}</div>
+                        <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.1 }}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {/* Meal cards */}
+                {/* ── MEAL CARDS — white, neutral */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {meals.map(meal => (
                     <div
@@ -209,7 +237,7 @@ export default function RiwayatPage() {
                       style={{
                         background: C.white,
                         border: `1px solid ${C.border}`,
-                        borderRadius: 20,
+                        borderRadius: 16,
                         padding: '13px 16px',
                         cursor: 'pointer',
                         display: 'flex',
@@ -238,12 +266,17 @@ export default function RiwayatPage() {
                           {fmtTime(meal.loggedAt)} · {meal.dishNames.length} menu
                         </div>
                       </div>
-                      {/* Kalori */}
-                      <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>
-                          {meal.totalCalories}
+                      {/* Kalori + chevron */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>
+                            {meal.totalCalories}
+                          </div>
+                          <div style={{ fontSize: 10, color: C.muted }}>kkal</div>
                         </div>
-                        <div style={{ fontSize: 10, color: C.muted }}>kkal</div>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6"/>
+                        </svg>
                       </div>
                     </div>
                   ))}
