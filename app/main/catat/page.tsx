@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import BrandAnnouncement from '@/components/BrandAnnouncement'
 
 type Dish = {
   name: string
@@ -40,16 +41,13 @@ export default function CatatPage() {
   const [warn, setWarn] = useState('')
   const [result, setResult] = useState<AnalysisResult | null>(null)
 
-  // ID entri riwayat yang tersimpan untuk sesi ini
   const [savedMealId, setSavedMealId] = useState<string | null>(null)
   const [autoSaving, setAutoSaving] = useState(false)
 
-  // Jalur 1 — koreksi via deskripsi (AI re-analyze)
   const [showKoreksi, setShowKoreksi] = useState(false)
   const [koreksiText, setKoreksiText] = useState('')
   const [reanalyzing, setReanalyzing] = useState(false)
 
-  // Jalur 2 — edit manual menu
   const [showFullEdit, setShowFullEdit] = useState(false)
   const [editResult, setEditResult] = useState<AnalysisResult | null>(null)
   const [patchingManual, setPatchingManual] = useState(false)
@@ -144,7 +142,6 @@ export default function CatatPage() {
     }
   }
 
-  // ── Auto-save entri baru setelah analisa pertama ──
   async function autoSaveNew(analysis: AnalysisResult, imgDataUrl: string) {
     setAutoSaving(true)
     try {
@@ -166,7 +163,6 @@ export default function CatatPage() {
     }
   }
 
-  // ── PATCH entri yang sudah ada ──
   async function patchMeal(analysis: AnalysisResult) {
     if (!savedMealId) return
     const res = await fetch(`/api/history?id=${savedMealId}`, {
@@ -178,7 +174,6 @@ export default function CatatPage() {
     if (!res.ok) throw new Error('patch failed')
   }
 
-  // ── Jalur 1: AI re-analyze dengan koreksi deskripsi ──
   async function analyzeWithCorrection() {
     if (!imgBase64 || !koreksiText.trim()) return
     setReanalyzing(true)
@@ -207,7 +202,6 @@ export default function CatatPage() {
     }
   }
 
-  // ── Jalur 2: Terapkan edit manual → recalc → PATCH langsung ──
   async function applyManualEdit() {
     if (!editResult) return
     setPatchingManual(true)
@@ -226,7 +220,6 @@ export default function CatatPage() {
     }
   }
 
-  // ── Analisa pertama ──
   async function analyze() {
     if (!imgBase64) return
     setLoading(true)
@@ -299,6 +292,9 @@ export default function CatatPage() {
       <input ref={galleryRef} type="file" accept="image/*" style={{ display: 'none' }}
         onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
 
+      {/* Brand Announcement — hanya tampil di step upload */}
+      {step === 'upload' && <BrandAnnouncement />}
+
       {/* ── STEP: UPLOAD ── */}
       {step === 'upload' && (
         <div style={{ animation: 'slideUp .38s cubic-bezier(.22,1,.36,1) both' }}>
@@ -363,8 +359,6 @@ export default function CatatPage() {
       {/* ── STEP: RESULT ── */}
       {step === 'result' && result && (
         <div style={{ animation: 'slideUp .38s cubic-bezier(.22,1,.36,1) both' }}>
-
-          {/* Foto + badge simpan */}
           {imageDataUrl && (
             <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
               <img src={imageDataUrl} alt="Foto makanan" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />
@@ -381,7 +375,6 @@ export default function CatatPage() {
             </div>
           )}
 
-          {/* ── FULL EDIT MODE (Jalur 2) ── */}
           {showFullEdit && editResult && (
             <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 18, padding: 16, marginBottom: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -461,7 +454,6 @@ export default function CatatPage() {
             </div>
           )}
 
-          {/* ── CARD NUTRISI ── */}
           {!showFullEdit && (
             <>
               <div style={{ background: S2, border: `1px solid ${BORDER}`, borderRadius: 18, padding: '14px 16px', marginBottom: 14 }}>
@@ -480,7 +472,6 @@ export default function CatatPage() {
                 )}
               </div>
 
-              {/* Daftar menu — read only, edit via full edit mode */}
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 10 }}>
                 Menu Terdeteksi ({result.dishes.length})
               </div>
@@ -498,16 +489,12 @@ export default function CatatPage() {
             </>
           )}
 
-          {/* Disclaimer */}
           <div style={{ background: 'rgba(61,255,149,.05)', border: '1px solid rgba(61,255,149,.15)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 16 }}>
             ℹ️ <strong>Disclaimer:</strong> Hasil analisa foto ini sepenuhnya dihasilkan oleh AI dan dapat mengandung ketidaktepatan.
           </div>
 
-          {/* ── CTA AREA ── */}
           {!showFullEdit && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-              {/* ── Tombol Koreksi (menonjol) ── */}
               {!showKoreksi ? (
                 <button onClick={() => setShowKoreksi(true)} style={{
                   width: '100%', padding: '15px 0',
@@ -520,7 +507,6 @@ export default function CatatPage() {
                   <span style={{ fontSize: 18 }}>✏️</span> Koreksi Hasil Analisa
                 </button>
               ) : (
-                /* ── Panel Koreksi expand ── */
                 <div style={{ background: S2, border: `1.5px solid rgba(61,255,149,.3)`, borderRadius: 18, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>✏️ Koreksi Hasil Analisa</div>
@@ -530,7 +516,6 @@ export default function CatatPage() {
                     }}>✕</button>
                   </div>
 
-                  {/* Jalur 1 — Deskripsi salah */}
                   <div style={{ background: 'var(--bg)', border: `1px solid ${BORDER}`, borderRadius: 13, padding: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <span style={{
@@ -544,33 +529,24 @@ export default function CatatPage() {
                       </div>
                     </div>
                     <textarea
-                      value={koreksiText}
-                      onChange={e => setKoreksiText(e.target.value)}
-                      rows={3}
+                      value={koreksiText} onChange={e => setKoreksiText(e.target.value)} rows={3}
                       placeholder="Contoh: Ini nasi goreng kampung dengan telur, bukan nasi putih biasa..."
                       style={{ ...inp, resize: 'none', marginBottom: 8 }}
                     />
-                    {/* Tombol analisa ulang — hanya muncul jika ada teks */}
                     {koreksiText.trim() && (
-                      <button
-                        onClick={analyzeWithCorrection}
-                        disabled={reanalyzing}
-                        style={{
-                          width: '100%', padding: '12px 0',
-                          background: ACCENT, color: '#081520',
-                          borderRadius: 11, fontWeight: 700, fontSize: 14,
-                          border: 'none', cursor: reanalyzing ? 'not-allowed' : 'pointer',
-                          opacity: reanalyzing ? 0.7 : 1,
-                          transition: 'opacity .2s',
-                          animation: 'slideUp .22s cubic-bezier(.22,1,.36,1) both',
-                        }}
-                      >
+                      <button onClick={analyzeWithCorrection} disabled={reanalyzing} style={{
+                        width: '100%', padding: '12px 0',
+                        background: ACCENT, color: '#081520',
+                        borderRadius: 11, fontWeight: 700, fontSize: 14,
+                        border: 'none', cursor: reanalyzing ? 'not-allowed' : 'pointer',
+                        opacity: reanalyzing ? 0.7 : 1, transition: 'opacity .2s',
+                        animation: 'slideUp .22s cubic-bezier(.22,1,.36,1) both',
+                      }}>
                         {reanalyzing ? '⏳ Menganalisa ulang...' : '🔄 Analisa Ulang dengan AI'}
                       </button>
                     )}
                   </div>
 
-                  {/* Jalur 2 — Edit/tambah menu */}
                   <div style={{ background: 'var(--bg)', border: `1px solid ${BORDER}`, borderRadius: 13, padding: 14 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                       <span style={{
@@ -594,7 +570,6 @@ export default function CatatPage() {
                 </div>
               )}
 
-              {/* Tombol Foto Ulang */}
               <button onClick={reset} style={{
                 width: '100%', padding: '12px 0', background: 'transparent',
                 border: '1px solid var(--border)', borderRadius: 13,

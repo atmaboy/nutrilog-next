@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import BrandAnnouncement from '@/components/BrandAnnouncement'
 
 type MaintenanceInfo = { title: string; description: string } | null
 
@@ -89,8 +90,7 @@ export default function LoginPage() {
 
       <div style={{ width: '100%', maxWidth: 380 }}>
         {/* Logo */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32, gap: 10 }}>
-          {/* Icon */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 24, gap: 10 }}>
           <svg width="52" height="52" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="16" cy="16" r="16" fill="#2ECC71"/>
             <path d="M8 16 Q8 23 16 23 Q24 23 24 16" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/>
@@ -110,6 +110,9 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
+
+        {/* Brand Announcement */}
+        <BrandAnnouncement />
 
         {/* Maintenance Banner */}
         {maintenance && (
@@ -183,80 +186,34 @@ export default function LoginPage() {
               }}>{error}</div>
             )}
 
-            {/* Username */}
             <div style={{ marginBottom: 13 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>
-                Username
-              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>Username</div>
               <input
-                type="text"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="Masukkan username"
-                required
-                autoFocus
-                style={{
-                  width: '100%',
-                  background: C.bg,
-                  border: `1px solid ${C.border2}`,
-                  borderRadius: 12,
-                  padding: '12px 14px',
-                  color: C.text,
-                  fontSize: 15,
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  fontFamily: "'Inter', sans-serif",
-                }}
+                type="text" value={username} onChange={e => setUsername(e.target.value)}
+                placeholder="Masukkan username" required autoFocus
+                style={{ width: '100%', background: C.bg, border: `1px solid ${C.border2}`, borderRadius: 12, padding: '12px 14px', color: C.text, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: "'Inter', sans-serif" }}
               />
             </div>
 
-            {/* Password */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>
-                Password
-              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 5 }}>Password</div>
               <div style={{ position: 'relative' }}>
                 <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Masukkan password"
-                  required
-                  style={{
-                    width: '100%',
-                    background: C.bg,
-                    border: `1px solid ${C.border2}`,
-                    borderRadius: 12,
-                    padding: '12px 44px 12px 14px',
-                    color: C.text,
-                    fontSize: 15,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    fontFamily: "'Inter', sans-serif",
-                  }}
+                  type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                  placeholder="Masukkan password" required
+                  style={{ width: '100%', background: C.bg, border: `1px solid ${C.border2}`, borderRadius: 12, padding: '12px 44px 12px 14px', color: C.text, fontSize: 15, outline: 'none', boxSizing: 'border-box', fontFamily: "'Inter', sans-serif" }}
                 />
-                <button type="button" onClick={() => setShowPass(s => !s)} style={{
-                  position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                  background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16,
-                }}>
+                <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16 }}>
                   {showPass ? '🙈' : '👁'}
                 </button>
               </div>
             </div>
 
             <button type="submit" disabled={loading} style={{
-              width: '100%',
-              padding: 14,
-              background: C.green,
-              borderRadius: 13,
-              color: '#FFFFFF',
-              fontFamily: "'Inter', sans-serif",
-              fontWeight: 700,
-              fontSize: 15,
-              border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1,
-              transition: 'opacity .2s',
+              width: '100%', padding: 14, background: C.green, borderRadius: 13,
+              color: '#FFFFFF', fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: 15,
+              border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.6 : 1, transition: 'opacity .2s',
             }}>
               {loading ? '⏳ Memproses...' : tab === 'login' ? '🚀 Masuk' : '✨ Daftar'}
             </button>
