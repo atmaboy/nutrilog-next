@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -120,6 +120,7 @@ export default function MealHistoryModal({
   const [filterDate, setFilterDate] = useState('')
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [deleting, setDeleting]   = useState<string | null>(null)
+  const dateInputRef              = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   const tok = () =>
@@ -157,6 +158,18 @@ export default function MealHistoryModal({
   function handleResetFilter() {
     setFilterDate('')
     load(1, true, '')
+  }
+
+  /** Klik di mana saja pada wrapper filter → buka date picker */
+  function handleFilterWrapperClick(e: React.MouseEvent<HTMLDivElement>) {
+    // Jangan trigger ulang jika klik langsung di input itu sendiri
+    if (e.target === dateInputRef.current) return
+    try {
+      dateInputRef.current?.showPicker()
+    } catch {
+      // showPicker() tidak tersedia di beberapa browser lama — fallback: focus saja
+      dateInputRef.current?.focus()
+    }
   }
 
   async function deleteMeal(mealId: string) {
@@ -240,12 +253,25 @@ export default function MealHistoryModal({
 
         {/* Filter bar */}
         <div className="px-6 pt-3 pb-2 border-b border-[#E5E7EB] flex items-center gap-2">
-          <div className="relative flex-1">
+          {/*
+            Wrapper div bertindak sebagai hit-area penuh.
+            onClick → showPicker() agar klik di mana saja membuka date picker,
+            bukan hanya di icon kalender browser di ujung kanan.
+          */}
+          <div
+            role="button"
+            aria-label="Pilih tanggal filter"
+            tabIndex={0}
+            onClick={handleFilterWrapperClick}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dateInputRef.current?.showPicker() } }}
+            className="relative flex-1 cursor-pointer"
+          >
+            {/* Icon kalender custom (kiri) */}
             <svg
               width="13" height="13" viewBox="0 0 24 24"
               fill="none" stroke={filterDate ? '#2ECC71' : '#9CA3AF'}
               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none z-10"
             >
               <rect x="3" y="4" width="18" height="18" rx="2"/>
               <line x1="16" y1="2" x2="16" y2="6"/>
@@ -253,6 +279,7 @@ export default function MealHistoryModal({
               <line x1="3" y1="10" x2="21" y2="10"/>
             </svg>
             <input
+              ref={dateInputRef}
               type="date"
               value={filterDate}
               max={new Date().toISOString().split('T')[0]}
@@ -262,6 +289,8 @@ export default function MealHistoryModal({
                 borderColor: filterDate ? '#BBF7D0' : '#E5E7EB',
                 background:  filterDate ? '#F0FDF4' : '#F9FAFB',
                 color:       filterDate ? '#111827' : '#6B7280',
+                // Sembunyikan icon kalender bawaan browser supaya tidak dobel dengan icon custom kiri
+                colorScheme: 'light',
               }}
             />
           </div>
@@ -346,24 +375,20 @@ export default function MealHistoryModal({
 
                     {/* ── Macro summary row ── */}
                     <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                      {/* Kalori */}
                       <span className="inline-flex items-center gap-1 text-xs font-semibold text-orange-500">
                         <FlameIcon size={11} />
                         {meal.totalCalories} kkal
                       </span>
-                      {/* Protein */}
                       <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
                         <DumbbellIcon size={11} color="#22c55e" />
                         <strong className="text-[#111827]">{Number(meal.totalProtein).toFixed(1)}g</strong>
                         <span>protein</span>
                       </span>
-                      {/* Karbo */}
                       <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
                         <GrainIcon size={11} color="#3b82f6" />
                         <strong className="text-[#111827]">{Number(meal.totalCarbs).toFixed(1)}g</strong>
                         <span>karbo</span>
                       </span>
-                      {/* Lemak */}
                       <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
                         <DropletIcon size={11} color="#a855f7" />
                         <strong className="text-[#111827]">{Number(meal.totalFat).toFixed(1)}g</strong>
