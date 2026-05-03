@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -97,6 +97,11 @@ const IconCalendar = () => (
     <line x1="3" y1="10" x2="21" y2="10"/>
   </svg>
 )
+const IconFilter = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+  </svg>
+)
 const IconSalad = () => (
   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2a5 5 0 0 1 5 5H7a5 5 0 0 1 5-5z"/>
@@ -175,6 +180,7 @@ export default function RiwayatPage() {
   const [modalMeal, setModalMeal] = useState<Meal | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [filterDate, setFilterDate] = useState('')
+  const dateInputRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async (p: number, isPaging = false, date = '') => {
     if (isPaging) {
@@ -202,11 +208,22 @@ export default function RiwayatPage() {
 
   useEffect(() => { load(1) }, [load])
 
+  function handleFilterClick() {
+    if (dateInputRef.current) {
+      try {
+        (dateInputRef.current as any).showPicker?.()
+      } catch {
+        dateInputRef.current.click()
+      }
+    }
+  }
+
   function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setFilterDate(val)
     load(1, true, val)
   }
+
   function handleResetFilter() {
     setFilterDate('')
     load(1, true, '')
@@ -260,81 +277,107 @@ export default function RiwayatPage() {
         @keyframes spin {
           to { transform: rotate(360deg) }
         }
-        input[type="date"]::-webkit-calendar-picker-indicator {
-          opacity: 0.5;
-          cursor: pointer;
-        }
       `}</style>
 
-      {/* ── DATE FILTER BAR — 2-row layout to prevent overflow on mobile */}
+      {/* ── DATE FILTER BAR */}
       <div style={{ marginBottom: 16 }}>
-        {/* Row 1: full-width date input */}
-        <div style={{ position: 'relative' }}>
-          <span style={{
-            position: 'absolute', left: 10, top: '50%',
-            transform: 'translateY(-50%)', pointerEvents: 'none',
-            display: 'flex', alignItems: 'center',
-            color: isFiltering ? C.green : C.muted,
-          }}>
-            <IconCalendar />
-          </span>
-          <input
-            type="date"
-            value={filterDate}
-            max={new Date().toISOString().split('T')[0]}
-            onChange={handleDateChange}
+
+        {/* Hidden native date input — triggered programmatically */}
+        <input
+          ref={dateInputRef}
+          type="date"
+          value={filterDate}
+          max={new Date().toISOString().split('T')[0]}
+          onChange={handleDateChange}
+          style={{
+            position: 'absolute',
+            opacity: 0,
+            pointerEvents: 'none',
+            width: 0,
+            height: 0,
+            overflow: 'hidden',
+          }}
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+
+        {/* Row 1: filter pill + selected date label */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={handleFilterClick}
             style={{
-              width: '100%',
-              padding: '9px 12px 9px 30px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
               borderRadius: 12,
               border: `1.5px solid ${isFiltering ? C.summaryBorder : C.border}`,
-              background: isFiltering ? C.summaryBg : C.white,
-              color: isFiltering ? C.text : C.muted,
+              background: isFiltering ? C.summaryPillBg : C.white,
+              color: isFiltering ? C.summaryPillText : C.muted,
               fontSize: 13,
-              fontFamily: 'var(--font-inter), sans-serif',
-              outline: 'none',
+              fontWeight: 600,
               cursor: 'pointer',
+              flexShrink: 0,
               transition: 'border-color .15s, background .15s',
-              boxSizing: 'border-box',
             }}
-          />
+          >
+            <IconFilter />
+            Filter Tanggal
+          </button>
+
+          {isFiltering && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 12px',
+              borderRadius: 12,
+              border: `1.5px solid ${C.summaryBorder}`,
+              background: C.summaryBg,
+              flex: 1,
+              minWidth: 0,
+            }}>
+              <span style={{ color: C.green, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                <IconCalendar />
+              </span>
+              <span style={{
+                fontSize: 13,
+                color: C.summaryPillText,
+                fontWeight: 500,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>
+                {fmtDateStr(filterDate)}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Row 2: active filter pill + reset — only shown when filter is active */}
+        {/* Row 2: reset — only when filtering */}
         {isFiltering && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginTop: 8,
-            padding: '6px 10px',
-            background: C.summaryBg,
-            border: `1px solid ${C.summaryBorder}`,
-            borderRadius: 10,
-          }}>
-            <span style={{ fontSize: 12, color: C.summaryPillText, fontWeight: 500 }}>
-              📅 {fmtDateStr(filterDate)}
-            </span>
+          <div style={{ marginTop: 8 }}>
             <button
               onClick={handleResetFilter}
               style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '4px 10px',
-                borderRadius: 8,
-                border: `1px solid ${C.summaryBorder}`,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '7px 14px',
+                borderRadius: 10,
+                border: `1px solid ${C.border}`,
                 background: C.white,
                 color: C.muted,
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
-                flexShrink: 0,
               }}
             >
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
-              Reset
+              Reset filter
             </button>
           </div>
         )}
