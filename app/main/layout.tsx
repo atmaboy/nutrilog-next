@@ -6,6 +6,73 @@ import Link from 'next/link'
 
 type User = { id: string; username: string }
 
+// ── Skeleton shimmer animation style (injected once) ──────────────────────────
+const skeletonStyle = `
+@keyframes gizku-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.gizku-skeleton {
+  background: linear-gradient(90deg, #F3F4F6 25%, #E9EAEC 50%, #F3F4F6 75%);
+  background-size: 800px 100%;
+  animation: gizku-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+`
+
+function AppShellSkeleton() {
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: skeletonStyle }} />
+      <div style={{
+        maxWidth: 480,
+        margin: '0 auto',
+        minHeight: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#F9FAFB',
+        fontFamily: 'var(--font-inter), sans-serif',
+      }}>
+        {/* Header skeleton */}
+        <header style={{
+          background: '#F9FAFB',
+          padding: 'calc(10px + env(safe-area-inset-top, 0px)) 16px 0',
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          flexShrink: 0,
+        }}>
+          <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Logo skeleton */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="gizku-skeleton" style={{ width: 32, height: 32, borderRadius: '50%' }} />
+              <div>
+                <div className="gizku-skeleton" style={{ width: 60, height: 14, marginBottom: 4 }} />
+                <div className="gizku-skeleton" style={{ width: 120, height: 10 }} />
+              </div>
+            </div>
+            {/* Right controls skeleton */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div className="gizku-skeleton" style={{ width: 96, height: 40, borderRadius: 999 }} />
+              <div className="gizku-skeleton" style={{ width: 100, height: 40, borderRadius: 999 }} />
+            </div>
+          </div>
+          {/* Nav tabs skeleton */}
+          <div className="gizku-skeleton" style={{ height: 56, borderRadius: 999, marginTop: 8, marginBottom: 12 }} />
+        </header>
+
+        {/* Content skeleton */}
+        <main style={{ flex: 1, padding: '14px 16px' }}>
+          <div className="gizku-skeleton" style={{ height: 120, borderRadius: 16, marginBottom: 12 }} />
+          <div className="gizku-skeleton" style={{ height: 80, borderRadius: 14, marginBottom: 10 }} />
+          <div className="gizku-skeleton" style={{ height: 80, borderRadius: 14, marginBottom: 10 }} />
+          <div className="gizku-skeleton" style={{ height: 80, borderRadius: 14 }} />
+        </main>
+      </div>
+    </>
+  )
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -136,7 +203,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
-  if (!user) return null
+  // ── Show skeleton while auth is validating (instead of blank screen) ─────────
+  if (!user) return <AppShellSkeleton />
 
   const initial = user.username[0]?.toUpperCase() ?? 'U'
 
@@ -177,17 +245,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet" />
-
       <div style={{
         maxWidth: 480,
         margin: '0 auto',
         minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: "'Inter', sans-serif",
+        fontFamily: 'var(--font-inter), sans-serif',
         background: C.bg,
       }}>
 
@@ -209,21 +273,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <polyline points="12,11 15,14.5 20.5,9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
               </svg>
               <div>
-                <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 600, fontSize: 20, color: C.text, lineHeight: 1.2 }}>Gizku</div>
-                <div style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 12, color: C.muted, lineHeight: 1.2 }}>AI Nutrition Companion</div>
+                <div style={{ fontFamily: 'var(--font-montserrat), sans-serif', fontWeight: 600, fontSize: 20, color: C.text, lineHeight: 1.2 }}>Gizku</div>
+                <div style={{ fontFamily: 'var(--font-inter), sans-serif', fontWeight: 400, fontSize: 12, color: C.muted, lineHeight: 1.2 }}>AI Nutrition Companion</div>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 96, height: 40, background: C.white, border: `1px solid ${C.border}`, borderRadius: 999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 16, color: C.text, lineHeight: 1.1 }}>
+                <span style={{ fontFamily: 'var(--font-inter), sans-serif', fontWeight: 600, fontSize: 16, color: C.text, lineHeight: 1.1 }}>
                   {dayKcal !== null ? dayKcal.toLocaleString('id-ID') : '—'}
                 </span>
-                <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 11, color: C.muted, lineHeight: 1.1 }}>kkal hari ini</span>
+                <span style={{ fontFamily: 'var(--font-inter), sans-serif', fontWeight: 400, fontSize: 11, color: C.muted, lineHeight: 1.1 }}>kkal hari ini</span>
               </div>
 
               <div onClick={() => setShowUserMenu(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.white, border: `1px solid ${C.border}`, borderRadius: 999, padding: '5px 10px 5px 7px', cursor: 'pointer', flexShrink: 0, position: 'relative' }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: C.green, color: '#fff', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Montserrat', sans-serif" }}>{initial}</div>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: C.green, color: '#fff', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-montserrat), sans-serif' }}>{initial}</div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: C.text, maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.username}</span>
                 {userEmail === null && (
                   <span style={{ position: 'absolute', top: 4, right: 4, width: 7, height: 7, borderRadius: '50%', background: C.orange, border: `1.5px solid ${C.white}` }} />
@@ -239,7 +303,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             ] as const).map(({ href, label, icon }) => {
               const active = pathname === href
               return (
-                <Link key={href} href={href} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: '100%', borderRadius: 999, fontFamily: "'Inter', sans-serif", fontWeight: active ? 600 : 500, fontSize: 14, textDecoration: 'none', background: active ? C.greenDim : 'transparent', color: active ? C.text : C.muted, transition: 'all .2s' }}>
+                <Link key={href} href={href} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: '100%', borderRadius: 999, fontFamily: 'var(--font-inter), sans-serif', fontWeight: active ? 600 : 500, fontSize: 14, textDecoration: 'none', background: active ? C.greenDim : 'transparent', color: active ? C.text : C.muted, transition: 'all .2s' }}>
                   <span style={{ color: active ? C.green : C.muted }}>{icon}</span>
                   {label}
                 </Link>
@@ -252,7 +316,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
 
-        <div style={{ textAlign: 'center', color: C.muted, fontSize: 11, fontFamily: "'Inter', sans-serif", padding: '8px 0 calc(8px + env(safe-area-inset-bottom, 0px))', background: C.bg }}>
+        <div style={{ textAlign: 'center', color: C.muted, fontSize: 11, fontFamily: 'var(--font-inter), sans-serif', padding: '8px 0 calc(8px + env(safe-area-inset-bottom, 0px))', background: C.bg }}>
           © 2026 Gizku · dev.wiryawan@gmail.com
         </div>
       </div>
@@ -262,7 +326,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div onClick={() => { setShowUserMenu(false); setShowEmailForm(false); setEmailError(''); setEmailInput('') }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#FFFFFF', borderRadius: '22px 22px 0 0', width: '100%', maxWidth: 480, padding: '20px 20px calc(20px + env(safe-area-inset-bottom, 0px))', boxShadow: '0 -4px 24px rgba(0,0,0,.08)' }}>
             <div style={{ width: 36, height: 4, background: '#E5E7EB', borderRadius: 4, margin: '0 auto 20px' }} />
-            <div style={{ fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 2, fontFamily: "'Montserrat', sans-serif" }}>@{user.username}</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 2, fontFamily: 'var(--font-montserrat), sans-serif' }}>@{user.username}</div>
 
             {/* Email section */}
             <div style={{ marginBottom: 20 }}>
@@ -294,9 +358,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <input
                       type="email" value={emailInput} onChange={e => { setEmailInput(e.target.value); setEmailError('') }}
                       placeholder="email@contoh.com"
-                      style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: "'Inter', sans-serif" }}
+                      style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 12px', color: C.text, fontSize: 14, outline: 'none', fontFamily: 'var(--font-inter), sans-serif' }}
                     />
-                    <button onClick={saveEmail} disabled={emailSaving} style={{ padding: '10px 16px', background: C.green, color: '#fff', borderRadius: 10, border: 'none', fontWeight: 600, fontSize: 13, cursor: emailSaving ? 'not-allowed' : 'pointer', opacity: emailSaving ? 0.6 : 1, fontFamily: "'Inter', sans-serif" }}>
+                    <button onClick={saveEmail} disabled={emailSaving} style={{ padding: '10px 16px', background: C.green, color: '#fff', borderRadius: 10, border: 'none', fontWeight: 600, fontSize: 13, cursor: emailSaving ? 'not-allowed' : 'pointer', opacity: emailSaving ? 0.6 : 1, fontFamily: 'var(--font-inter), sans-serif' }}>
                       {emailSaving ? '...' : 'Simpan'}
                     </button>
                   </div>
@@ -333,7 +397,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div onClick={() => setShowReport(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#FFFFFF', borderRadius: '22px 22px 0 0', width: '100%', maxWidth: 480, padding: '20px 20px calc(24px + env(safe-area-inset-bottom, 0px))', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 -4px 24px rgba(0,0,0,.08)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: C.text, fontFamily: "'Montserrat', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, color: C.text, fontFamily: 'var(--font-montserrat), sans-serif', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ color: C.muted, display: 'flex', alignItems: 'center' }}>{IconReport}</span>
                 Kirim Laporan
               </div>
@@ -343,7 +407,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {reportDone ? (
               <div style={{ textAlign: 'center', padding: '24px 0' }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-                <div style={{ fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 8, fontFamily: "'Montserrat', sans-serif" }}>Laporan Terkirim!</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 8, fontFamily: 'var(--font-montserrat), sans-serif' }}>Laporan Terkirim!</div>
                 <div style={{ color: C.muted, fontSize: 13 }}>Terima kasih atas masukan kamu.</div>
                 <button onClick={() => setReportDone(false)} style={{ marginTop: 16, padding: '10px 20px', borderRadius: 12, background: '#F9FAFB', border: `1px solid ${C.border}`, color: C.text, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Kirim Laporan Lain</button>
               </div>
@@ -353,10 +417,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   value={reportMsg} onChange={e => setReportMsg(e.target.value.slice(0, 2000))}
                   placeholder="Ceritakan kendalamu atau berikan masukan untuk Gizku..."
                   rows={6}
-                  style={{ width: '100%', background: '#F9FAFB', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.text, fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box', marginBottom: 8, fontFamily: "'Inter', sans-serif" }}
+                  style={{ width: '100%', background: '#F9FAFB', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.text, fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box', marginBottom: 8, fontFamily: 'var(--font-inter), sans-serif' }}
                 />
                 <div style={{ textAlign: 'right', color: C.muted, fontSize: 11, marginBottom: 12 }}>{reportMsg.length}/2000</div>
-                <button onClick={submitReport} disabled={reportSending || !reportMsg.trim()} style={{ width: '100%', padding: 14, borderRadius: 13, background: C.green, color: '#FFFFFF', fontWeight: 700, fontSize: 15, border: 'none', cursor: reportSending ? 'not-allowed' : 'pointer', opacity: reportSending || !reportMsg.trim() ? 0.6 : 1, fontFamily: "'Inter', sans-serif" }}>
+                <button onClick={submitReport} disabled={reportSending || !reportMsg.trim()} style={{ width: '100%', padding: 14, borderRadius: 13, background: C.green, color: '#FFFFFF', fontWeight: 700, fontSize: 15, border: 'none', cursor: reportSending ? 'not-allowed' : 'pointer', opacity: reportSending || !reportMsg.trim() ? 0.6 : 1, fontFamily: 'var(--font-inter), sans-serif' }}>
                   {reportSending ? '⏳ Mengirim...' : 'Kirim Laporan'}
                 </button>
               </>
