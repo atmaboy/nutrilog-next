@@ -6,6 +6,7 @@ export default function ConfigPage() {
   const [token, setToken]       = useState('')
   const [limit, setLimit]       = useState('')
   const [apiKey, setApiKey]     = useState('')
+  const [aiModel, setAiModel]   = useState('claude-sonnet-4-5')
   const [newPwd, setNewPwd]     = useState('')
   const [mEnabled, setMEnabled] = useState(false)
   const [mTitle, setMTitle]     = useState('')
@@ -28,12 +29,13 @@ export default function ConfigPage() {
           setMDesc(d.maintenance.description ?? '')
         }
         if (d.dailyLimit !== undefined) setLimit(String(d.dailyLimit))
+        if (d.anthropicModel) setAiModel(d.anthropicModel)
       })
       .catch(() => {})
   }, [])
 
   async function save(action: string, body: Record<string, unknown>, label: string) {
-    setLoading(action)
+    setLoading(action + JSON.stringify(body))
     try {
       const r = await fetch(`/api/admin?action=${action}`, {
         method: 'POST',
@@ -62,7 +64,7 @@ export default function ConfigPage() {
     <button
       onClick={onClick}
       disabled={disabled}
-      className="bg-[#2ECC71] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#28B765] transition disabled:opacity-50 disabled:cursor-not-allowed"
+      className="bg-[#2ECC71] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#28B765] transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
     >
       {children}
     </button>
@@ -81,9 +83,9 @@ export default function ConfigPage() {
           />
           <BtnPrimary
             onClick={() => save('update_config', { dailyLimit: parseInt(limit) }, 'Limit')}
-            disabled={loading === 'update_config'}
+            disabled={loading !== null}
           >
-            {loading === 'update_config' ? '…' : 'Simpan'}
+            {loading !== null ? '…' : 'Simpan'}
           </BtnPrimary>
         </div>
       </Section>
@@ -97,11 +99,35 @@ export default function ConfigPage() {
           />
           <BtnPrimary
             onClick={() => save('update_config', { anthropicApiKey: apiKey }, 'API Key')}
-            disabled={loading === 'update_config_key'}
+            disabled={loading !== null}
           >
-            {loading === 'update_config_key' ? '…' : 'Simpan'}
+            {loading !== null ? '…' : 'Simpan'}
           </BtnPrimary>
         </div>
+      </Section>
+
+      {/* Model AI */}
+      <Section title="Model AI (Claude)">
+        <div className="flex gap-2">
+          <select
+            value={aiModel}
+            onChange={e => setAiModel(e.target.value)}
+            className={inputCls}
+          >
+            <option value="claude-haiku-3-5">claude-haiku-3-5 — Cepat &amp; Hemat</option>
+            <option value="claude-sonnet-4-5">claude-sonnet-4-5 — Recommended ✓</option>
+            <option value="claude-opus-4-5">claude-opus-4-5 — Paling Canggih</option>
+          </select>
+          <BtnPrimary
+            onClick={() => save('update_config', { anthropicModel: aiModel }, 'Model AI')}
+            disabled={loading !== null}
+          >
+            {loading !== null ? '…' : 'Simpan'}
+          </BtnPrimary>
+        </div>
+        <p className="text-xs text-[#6B7280] mt-2">
+          Ganti ke model lebih ringan jika muncul error &quot;Server AI sedang sibuk&quot;.
+        </p>
       </Section>
 
       {/* Password */}
@@ -113,9 +139,9 @@ export default function ConfigPage() {
           />
           <BtnPrimary
             onClick={() => save('update_password', { newPassword: newPwd }, 'Password')}
-            disabled={loading === 'update_password' || newPwd.length < 8}
+            disabled={loading !== null || newPwd.length < 8}
           >
-            {loading === 'update_password' ? '…' : 'Ubah'}
+            {loading !== null ? '…' : 'Ubah'}
           </BtnPrimary>
         </div>
       </Section>
@@ -143,9 +169,9 @@ export default function ConfigPage() {
           />
           <BtnPrimary
             onClick={() => save('update_maintenance', { enabled: mEnabled, title: mTitle, description: mDesc }, 'Maintenance')}
-            disabled={loading === 'update_maintenance'}
+            disabled={loading !== null}
           >
-            {loading === 'update_maintenance' ? '…' : 'Simpan Maintenance'}
+            {loading !== null ? '…' : 'Simpan Maintenance'}
           </BtnPrimary>
         </div>
       </Section>
