@@ -72,9 +72,10 @@ export async function POST(req: NextRequest) {
 
   if (!imageBase64) return err('Gambar diperlukan')
 
-  // Anthropic API Key
-  const apiKey = await getCfg('anthropic_api_key') || process.env.ANTHROPIC_API_KEY
+  // Anthropic API Key & Model
+  const apiKey  = await getCfg('anthropic_api_key') || process.env.ANTHROPIC_API_KEY
   if (!apiKey) return err('API key Anthropic belum dikonfigurasi', 503)
+  const modelId = await getCfg('anthropic_model') || 'claude-sonnet-4-5'
 
   // Build prompt — strict food-only validation + correction context
   const basePrompt = `Kamu adalah analis nutrisi makanan. Tugasmu HANYA menganalisa gambar yang berisi makanan atau minuman.
@@ -109,10 +110,7 @@ LANGKAH KEDUA — jika ada makanan, kembalikan TEPAT format JSON berikut tanpa t
 }`
 
   const correctionPrompt = correction.trim()
-    ? `${basePrompt}
-
-KOREKSI DARI USER: "${correction.trim()}"
-Gunakan informasi koreksi di atas sebagai prioritas utama untuk menentukan nama menu, bahan, dan porsi yang benar. Perbarui seluruh daftar dishes, total nutrisi, notes, healthScore, dan assessment berdasarkan koreksi tersebut.`
+    ? `${basePrompt}\n\nKOREKSI DARI USER: "${correction.trim()}"\nGunakan informasi koreksi di atas sebagai prioritas utama untuk menentukan nama menu, bahan, dan porsi yang benar. Perbarui seluruh daftar dishes, total nutrisi, notes, healthScore, dan assessment berdasarkan koreksi tersebut.`
     : basePrompt
 
   // Analyze with Claude
@@ -120,7 +118,7 @@ Gunakan informasi koreksi di atas sebagai prioritas utama untuk menentukan nama 
   try {
     const client = new Anthropic({ apiKey })
     const response = await client.messages.create({
-      model: 'claude-opus-4-5',
+      model: modelId,
       max_tokens: 1024,
       messages: [{
         role: 'user',
