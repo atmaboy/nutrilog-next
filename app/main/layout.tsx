@@ -6,7 +6,6 @@ import Link from 'next/link'
 
 type User = { id: string; username: string }
 
-// ── Skeleton shimmer animation style (injected once) ──────────────────────────
 const skeletonStyle = `
 @keyframes gizku-shimmer {
   0%   { background-position: -400px 0; }
@@ -25,25 +24,16 @@ function AppShellSkeleton() {
     <>
       <style dangerouslySetInnerHTML={{ __html: skeletonStyle }} />
       <div style={{
-        maxWidth: 480,
-        margin: '0 auto',
-        minHeight: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#F9FAFB',
-        fontFamily: 'var(--font-inter), sans-serif',
+        maxWidth: 480, margin: '0 auto', minHeight: '100dvh',
+        display: 'flex', flexDirection: 'column',
+        background: '#F9FAFB', fontFamily: 'var(--font-inter), sans-serif',
       }}>
-        {/* Header skeleton */}
         <header style={{
           background: '#F9FAFB',
           padding: 'calc(10px + env(safe-area-inset-top, 0px)) 16px 0',
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-          flexShrink: 0,
+          position: 'sticky', top: 0, zIndex: 10, flexShrink: 0,
         }}>
           <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            {/* Logo skeleton */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div className="gizku-skeleton" style={{ width: 32, height: 32, borderRadius: '50%' }} />
               <div>
@@ -51,17 +41,13 @@ function AppShellSkeleton() {
                 <div className="gizku-skeleton" style={{ width: 120, height: 10 }} />
               </div>
             </div>
-            {/* Right controls skeleton */}
             <div style={{ display: 'flex', gap: 8 }}>
               <div className="gizku-skeleton" style={{ width: 96, height: 40, borderRadius: 999 }} />
               <div className="gizku-skeleton" style={{ width: 100, height: 40, borderRadius: 999 }} />
             </div>
           </div>
-          {/* Nav tabs skeleton */}
           <div className="gizku-skeleton" style={{ height: 56, borderRadius: 999, marginTop: 8, marginBottom: 12 }} />
         </header>
-
-        {/* Content skeleton */}
         <main style={{ flex: 1, padding: '14px 16px' }}>
           <div className="gizku-skeleton" style={{ height: 120, borderRadius: 16, marginBottom: 12 }} />
           <div className="gizku-skeleton" style={{ height: 80, borderRadius: 14, marginBottom: 10 }} />
@@ -101,25 +87,57 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const u = localStorage.getItem('nl_user')
     if (!token || !u) { router.replace('/login'); return }
     document.documentElement.classList.remove('dark')
-    validateToken(token, u)
+    initApp(token, u)
   }, [router])
 
-  async function validateToken(token: string, userStr: string) {
-    try {
-      const res = await fetch('/api/history?action=today', {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      })
+  // ── Single entry point: fire all 3 API calls in parallel ─────────────────────
+  async function initApp(token: string, userStr: string) {
+    const headers = { Authorization: `Bearer ${token}` }
+
+    const [todayResult, emailResult, maintenanceResult] = await Promise.allSettled([
+      fetch('/api/history?action=today', { headers, cache: 'no-store' }),
+      fetch('/api/user?action=profile',  { headers, cache: 'no-store' }),
+      fetch('/api/maintenance',           { headers, cache: 'no-store' }),
+    ])
+
+    // ── today / auth check ───────────────────────────────────────────────────
+    if (todayResult.status === 'fulfilled') {
+      const res = todayResult.value
       if (res.status === 401) { forceLogout(); return }
-      setUser(JSON.parse(userStr))
-      const data = await res.json()
-      setDayKcal(data.summary?.totalCalories ?? 0)
-      checkMaintenance(token)
-      fetchEmail(token)
-    } catch {
-      setUser(JSON.parse(userStr))
-      checkMaintenance(token)
+      try {
+        const data = await res.json()
+        setDayKcal(data.summary?.totalCalories ?? 0)
+      } catch { setDayKcal(0) }
+    } else {
+      // network error — still show the shell
+      setDayKcal(0)
     }
+
+    // ── email ────────────────────────────────────────────────────────────────
+    if (emailResult.status === 'fulfilled' && emailResult.value.ok) {
+      try {
+        const data = await emailResult.value.json()
+        setUserEmail(data.user?.email ?? null)
+      } catch { /* fail-open */ }
+    }
+
+    // ── maintenance ──────────────────────────────────────────────────────────
+    if (maintenanceResult.status === 'fulfilled' && maintenanceResult.value.ok) {
+      try {
+        const data = await maintenanceResult.value.json()
+        if (data?.enabled) {
+          localStorage.setItem('nl_maintenance', JSON.stringify({
+            title: data.title || 'Aplikasi Sedang Dalam Pemeliharaan',
+            description: data.description || 'Kami sedang melakukan peningkatan sistem. Silakan coba beberapa saat lagi.',
+          }))
+          forceLogout()
+          return
+        }
+      } catch { /* fail-open */ }
+    }
+
+    // ── done: render the shell ───────────────────────────────────────────────
+    setUser(JSON.parse(userStr))
   }
 
   async function fetchEmail(token: string) {
@@ -134,25 +152,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     } catch { /* fail-open */ }
   }
 
-  async function checkMaintenance(token: string) {
-    try {
-      const res = await fetch('/api/maintenance', {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      })
-      if (!res.ok) return
-      const data = await res.json()
-      if (data?.enabled) {
-        localStorage.setItem('nl_maintenance', JSON.stringify({
-          title: data.title || 'Aplikasi Sedang Dalam Pemeliharaan',
-          description: data.description || 'Kami sedang melakukan peningkatan sistem. Silakan coba beberapa saat lagi.',
-        }))
-        forceLogout()
-      }
-    } catch { /* fail-open */ }
-  }
-
-  function logout() {
+  async function logout() {
     localStorage.removeItem('nl_token')
     localStorage.removeItem('nl_user')
     router.replace('/login')
@@ -203,38 +203,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // ── Show skeleton while auth is validating (instead of blank screen) ─────────
   if (!user) return <AppShellSkeleton />
 
   const initial = user.username[0]?.toUpperCase() ?? 'U'
 
   const C = {
-    bg: '#F9FAFB',
-    white: '#FFFFFF',
-    border: '#E5E7EB',
-    text: '#111827',
-    muted: '#6B7280',
-    green: '#2ECC71',
-    greenDim: '#D4F5E4',
-    red: '#EF4444',
-    orange: '#F59E0B',
-    orangeDim: '#FEF3C7',
+    bg: '#F9FAFB', white: '#FFFFFF', border: '#E5E7EB',
+    text: '#111827', muted: '#6B7280', green: '#2ECC71',
+    greenDim: '#D4F5E4', red: '#EF4444', orange: '#F59E0B', orangeDim: '#FEF3C7',
   }
 
-  // SVG icons
   const IconMail = (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
       <polyline points="22,6 12,13 2,6"/>
     </svg>
   )
-
   const IconReport = (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
     </svg>
   )
-
   const IconLogout = (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -246,23 +235,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div style={{
-        maxWidth: 480,
-        margin: '0 auto',
-        minHeight: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        fontFamily: 'var(--font-inter), sans-serif',
-        background: C.bg,
+        maxWidth: 480, margin: '0 auto', minHeight: '100dvh',
+        display: 'flex', flexDirection: 'column',
+        fontFamily: 'var(--font-inter), sans-serif', background: C.bg,
       }}>
-
         {/* ── HEADER ── */}
         <header style={{
           background: C.bg,
           padding: 'calc(10px + env(safe-area-inset-top, 0px)) 16px 0',
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-          flexShrink: 0,
+          position: 'sticky', top: 0, zIndex: 10, flexShrink: 0,
         }}>
           <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -328,7 +309,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div style={{ width: 36, height: 4, background: '#E5E7EB', borderRadius: 4, margin: '0 auto 20px' }} />
             <div style={{ fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 2, fontFamily: 'var(--font-montserrat), sans-serif' }}>@{user.username}</div>
 
-            {/* Email section */}
             <div style={{ marginBottom: 20 }}>
               {userEmail ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -347,8 +327,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <button onClick={() => { setShowEmailForm(f => !f); setEmailInput(''); setEmailError('') }} style={{ fontSize: 12, color: C.orange, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>+ Tambah</button>
                 </div>
               )}
-
-              {/* Inline email form */}
               {showEmailForm && (
                 <div style={{ marginTop: 10 }}>
                   {emailError && (
@@ -368,7 +346,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               )}
             </div>
 
-            {/* Success toast */}
             {emailSuccess && (
               <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '8px 12px', color: '#15803D', fontSize: 13, fontWeight: 500, marginBottom: 12 }}>✅ Email berhasil disimpan</div>
             )}
@@ -403,7 +380,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
               <button onClick={() => setShowReport(false)} style={{ background: '#F9FAFB', border: `1px solid ${C.border}`, borderRadius: 9, padding: '6px 12px', color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✕ Tutup</button>
             </div>
-
             {reportDone ? (
               <div style={{ textAlign: 'center', padding: '24px 0' }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
