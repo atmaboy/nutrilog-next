@@ -69,6 +69,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [reportMsg, setReportMsg] = useState('')
   const [reportSending, setReportSending] = useState(false)
   const [reportDone, setReportDone] = useState(false)
+  const [reportError, setReportError] = useState('')
   const [dayKcal, setDayKcal] = useState<number | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [emailInput, setEmailInput] = useState('')
@@ -161,6 +162,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   async function submitReport() {
     if (!reportMsg.trim()) return
     setReportSending(true)
+    setReportError('')
     try {
       const token = localStorage.getItem('nl_token') || ''
       const res = await fetch('/api/report', {
@@ -169,7 +171,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ message: reportMsg }),
       })
       if (res.status === 401) { forceLogout(); return }
-      if (res.ok) { setReportDone(true); setReportMsg('') }
+      if (res.ok) {
+        setReportDone(true)
+        setReportMsg('')
+        setReportError('')
+      } else {
+        try {
+          const data = await res.json()
+          setReportError(data.error || 'Gagal mengirim laporan. Silakan coba lagi.')
+        } catch {
+          setReportError('Gagal mengirim laporan. Silakan coba lagi.')
+        }
+      }
+    } catch {
+      setReportError('Tidak dapat terhubung ke server. Periksa koneksi internet kamu.')
     } finally {
       setReportSending(false)
     }
@@ -351,7 +366,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
 
             <button
-              onClick={() => { setShowUserMenu(false); setShowEmailForm(false); setShowReport(true); setReportDone(false) }}
+              onClick={() => { setShowUserMenu(false); setShowEmailForm(false); setShowReport(true); setReportDone(false); setReportError('') }}
               style={{ width: '100%', padding: '13px 16px', borderRadius: 13, marginBottom: 8, background: '#F9FAFB', border: `1px solid ${C.border}`, color: C.text, fontWeight: 600, fontSize: 14, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10 }}
             >
               <span style={{ color: C.muted, display: 'flex', alignItems: 'center' }}>{IconReport}</span>
@@ -385,17 +400,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
                 <div style={{ fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 8, fontFamily: 'var(--font-montserrat), sans-serif' }}>Laporan Terkirim!</div>
                 <div style={{ color: C.muted, fontSize: 13 }}>Terima kasih atas masukan kamu.</div>
-                <button onClick={() => setReportDone(false)} style={{ marginTop: 16, padding: '10px 20px', borderRadius: 12, background: '#F9FAFB', border: `1px solid ${C.border}`, color: C.text, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Kirim Laporan Lain</button>
+                <button onClick={() => { setReportDone(false); setReportError('') }} style={{ marginTop: 16, padding: '10px 20px', borderRadius: 12, background: '#F9FAFB', border: `1px solid ${C.border}`, color: C.text, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Kirim Laporan Lain</button>
               </div>
             ) : (
               <>
+                {reportError && (
+                  <div style={{ background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.2)', borderRadius: 10, padding: '10px 14px', color: C.red, fontSize: 13, fontWeight: 500, marginBottom: 12 }}>
+                    ⚠️ {reportError}
+                  </div>
+                )}
                 <textarea
-                  value={reportMsg} onChange={e => setReportMsg(e.target.value.slice(0, 2000))}
+                  value={reportMsg} onChange={e => { setReportMsg(e.target.value.slice(0, 1000)); setReportError('') }}
                   placeholder="Ceritakan kendalamu atau berikan masukan untuk Gizku..."
                   rows={6}
                   style={{ width: '100%', background: '#F9FAFB', border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.text, fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box', marginBottom: 8, fontFamily: 'var(--font-inter), sans-serif' }}
                 />
-                <div style={{ textAlign: 'right', color: C.muted, fontSize: 11, marginBottom: 12 }}>{reportMsg.length}/2000</div>
+                <div style={{ textAlign: 'right', color: reportMsg.length >= 900 ? C.orange : C.muted, fontSize: 11, marginBottom: 12, fontWeight: reportMsg.length >= 900 ? 600 : 400 }}>{reportMsg.length}/1000</div>
                 <button onClick={submitReport} disabled={reportSending || !reportMsg.trim()} style={{ width: '100%', padding: 14, borderRadius: 13, background: C.green, color: '#FFFFFF', fontWeight: 700, fontSize: 15, border: 'none', cursor: reportSending ? 'not-allowed' : 'pointer', opacity: reportSending || !reportMsg.trim() ? 0.6 : 1, fontFamily: 'var(--font-inter), sans-serif' }}>
                   {reportSending ? '⏳ Mengirim...' : 'Kirim Laporan'}
                 </button>

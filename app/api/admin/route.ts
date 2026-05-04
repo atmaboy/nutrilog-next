@@ -145,6 +145,17 @@ export async function POST(req: NextRequest) {
       return ok({ message: 'User dihapus' })
     }
 
+    // ── update report status ─────────────────────────────────────────────────
+    if (action === 'update_report') {
+      const { id, status } = await req.json()
+      if (!id) return err('id laporan diperlukan')
+      if (!['open', 'closed'].includes(status)) return err('Status tidak valid')
+      await db.update(reports)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(reports.id, id))
+      return ok({ message: 'Status laporan diperbarui' })
+    }
+
     return err('Action tidak dikenal')
   } catch (e) {
     console.error('[admin POST]', e)
@@ -160,6 +171,12 @@ export async function DELETE(req: NextRequest) {
       if (!id) return err('meal id diperlukan')
       await db.delete(meals).where(eq(meals.id, id))
       return ok({ message: 'Riwayat analisa dihapus' })
+    }
+    if (action === 'delete_report') {
+      const { id } = await req.json()
+      if (!id) return err('report id diperlukan')
+      await db.delete(reports).where(eq(reports.id, id))
+      return ok({ message: 'Laporan dihapus' })
     }
     return err('Action tidak dikenal')
   } catch (e) {
@@ -243,6 +260,15 @@ export async function GET(req: NextRequest) {
       const apiKey      = await getCfg('anthropic_api_key')
       const maintenance = await getMaintenance()
       return ok({ globalLimit, apiKey: apiKey ? '••••••••' : '', maintenance })
+    }
+
+    // ── list all reports (for client-side fetching) ──────────────────────────
+    if (action === 'reports') {
+      const status = req.nextUrl.searchParams.get('status') // optional: 'open' | 'closed'
+      const rows = status
+        ? await db.select().from(reports).where(eq(reports.status, status)).orderBy(desc(reports.createdAt))
+        : await db.select().from(reports).orderBy(desc(reports.createdAt))
+      return ok({ reports: rows })
     }
 
     return err('Action tidak dikenal')
