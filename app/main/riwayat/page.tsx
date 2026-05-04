@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner' 
+import { toast } from 'sonner'
+import Image from 'next/image'
 
 type Dish = { name: string; portion: string; calories: number; protein: number; carbs: number; fat: number }
 type Meal = {
@@ -253,34 +254,21 @@ export default function RiwayatPage() {
         .date-overlay::-webkit-date-and-time-value { opacity: 0; }
       `}</style>
 
-      {/* ── DATE FILTER BAR */}
       <div style={{ marginBottom: 16 }}>
-
-        {/* Row 1: pill button (with overlaid date input) + selected date chip */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-
-          {/* Pill button wrapper — input overlaid on top, invisible but tappable */}
           <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-            {/* Visual pill — pointer-events:none so tap passes through to input */}
             <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              borderRadius: 12,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '8px 14px', borderRadius: 12,
               border: `1.5px solid ${isFiltering ? C.summaryBorder : C.border}`,
               background: isFiltering ? C.summaryPillBg : C.white,
               color: isFiltering ? C.summaryPillText : C.muted,
-              fontSize: 13,
-              fontWeight: 600,
-              pointerEvents: 'none',
-              userSelect: 'none',
+              fontSize: 13, fontWeight: 600,
+              pointerEvents: 'none', userSelect: 'none',
             }}>
               <IconFilter />
               Filter Tanggal
             </div>
-
-            {/* Real date input — covers the pill exactly, fully transparent */}
             <input
               type="date"
               className="date-overlay"
@@ -290,31 +278,20 @@ export default function RiwayatPage() {
               aria-label="Filter tanggal"
             />
           </div>
-
-          {/* Selected date chip — only when filter active */}
           {isFiltering && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 12px',
-              borderRadius: 12,
+              padding: '8px 12px', borderRadius: 12,
               border: `1.5px solid ${C.summaryBorder}`,
-              background: C.summaryBg,
-              flex: 1, minWidth: 0,
+              background: C.summaryBg, flex: 1, minWidth: 0,
             }}>
-              <span style={{ color: C.green, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                <IconCalendar />
-              </span>
-              <span style={{
-                fontSize: 13, color: C.summaryPillText, fontWeight: 500,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
+              <span style={{ color: C.green, flexShrink: 0, display: 'flex', alignItems: 'center' }}><IconCalendar /></span>
+              <span style={{ fontSize: 13, color: C.summaryPillText, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {fmtDateStr(filterDate)}
               </span>
             </div>
           )}
         </div>
-
-        {/* Row 2: reset — only when filtering */}
         {isFiltering && (
           <div style={{ marginTop: 8 }}>
             <button
@@ -336,7 +313,6 @@ export default function RiwayatPage() {
         )}
       </div>
 
-      {/* ── Initial skeleton */}
       {loading && !history && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[1, 2, 3].map(i => (
@@ -351,7 +327,6 @@ export default function RiwayatPage() {
 
       {paging && <PaginationSkeleton />}
 
-      {/* ── Empty: filter aktif & tidak ada hasil */}
       {!paging && !loading && history && history.meals.length === 0 && isFiltering && (
         <div style={{ textAlign: 'center', padding: '52px 0 40px' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, opacity: 0.45 }}><IconCalendar /></div>
@@ -368,7 +343,6 @@ export default function RiwayatPage() {
         </div>
       )}
 
-      {/* ── Empty: tanpa filter */}
       {!paging && !loading && history && history.meals.length === 0 && !isFiltering && (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, opacity: 0.45 }}><IconSalad /></div>
@@ -381,7 +355,6 @@ export default function RiwayatPage() {
         </div>
       )}
 
-      {/* ── Main content */}
       {!paging && history && history.meals.length > 0 && (
         <div style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 220ms ease' }}>
           <div style={{ color: C.muted, fontSize: 12, marginBottom: 14 }}>
@@ -400,7 +373,6 @@ export default function RiwayatPage() {
                   {fmtDate(date + 'T00:00:00')}
                 </div>
 
-                {/* Summary card */}
                 <div style={{ background: C.summaryBg, border: `1.5px solid ${C.summaryBorder}`, borderRadius: 20, padding: '12px 16px 14px', marginBottom: 10 }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: C.summaryPillBg, border: `1px solid ${C.summaryBorder}`, borderRadius: 999, padding: '3px 10px', marginBottom: 10 }}>
                     <IconFire />
@@ -419,7 +391,6 @@ export default function RiwayatPage() {
                   </div>
                 </div>
 
-                {/* Meal cards */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {meals.map(meal => (
                     <div
@@ -457,7 +428,6 @@ export default function RiwayatPage() {
             )
           })}
 
-          {/* PAGINATION */}
           {history.totalPages > 1 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, paddingTop: 8, flexWrap: 'wrap' }}>
               {page > 1 && (
@@ -480,7 +450,6 @@ export default function RiwayatPage() {
         </div>
       )}
 
-      {/* ── MODAL DETAIL */}
       {modalMeal && (
         <div onClick={() => setModalMeal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', animation: 'slideUp .3s cubic-bezier(.34,1.1,.64,1) both', WebkitOverflowScrolling: 'touch', boxShadow: '0 -8px 32px rgba(0,0,0,.1)' }}>
@@ -491,11 +460,22 @@ export default function RiwayatPage() {
             <div style={{ padding: '0 16px calc(28px + env(safe-area-inset-bottom, 0px))' }}>
               <div style={{ fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 4 }}>{modalMeal.dishNames.join(', ') || 'Makanan'}</div>
               <div style={{ color: C.muted, fontSize: 12, marginBottom: 16 }}>{fmtDate(modalMeal.loggedAt)} · {fmtTime(modalMeal.loggedAt)}</div>
+
               {modalMeal.imageUrl && (
-                <div style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
-                  <img src={modalMeal.imageUrl} alt="Foto makanan" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }} />
+                <div style={{ position: 'relative', width: '100%', height: 200, borderRadius: 16, overflow: 'hidden', marginBottom: 14 }}>
+                  <Image
+                    src={modalMeal.imageUrl}
+                    alt={`Foto ${modalMeal.dishNames.join(', ') || 'makanan'}`}
+                    fill
+                    sizes="(max-width: 480px) 100vw, 480px"
+                    style={{ objectFit: 'cover' }}
+                    loading="lazy"
+                    placeholder="blur"
+                    blurDataURL="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                  />
                 </div>
               )}
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16, background: C.summaryBg, border: `1.5px solid ${C.summaryBorder}`, borderRadius: 20, padding: '12px 8px' }}>
                 {nutriStats(modalMeal.totalCalories, `${parseFloat(modalMeal.totalProtein).toFixed(1)}g`, `${parseFloat(modalMeal.totalCarbs).toFixed(1)}g`, `${parseFloat(modalMeal.totalFat).toFixed(1)}g`)
                   .map(({ icon, val, label, valColor }) => (
