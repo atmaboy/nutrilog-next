@@ -60,8 +60,9 @@ export async function POST(req: NextRequest) {
 
     if (action === 'update_config') {
       const body = await req.json()
-      if (body.dailyLimit !== undefined) await setCfg('default_daily_limit', String(body.dailyLimit))
+      if (body.dailyLimit !== undefined)      await setCfg('default_daily_limit', String(body.dailyLimit))
       if (body.anthropicApiKey !== undefined) await setCfg('anthropic_api_key', body.anthropicApiKey)
+      if (body.anthropicModel !== undefined)  await setCfg('anthropic_model', body.anthropicModel)
       return ok({ message: 'Konfigurasi disimpan' })
     }
 
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
       return ok({ message: 'User dihapus' })
     }
 
-    // ── update report status ─────────────────────────────────────────────────
+    // ── update report status ──────────────────────────────────────────────────
     if (action === 'update_report') {
       const { id, status } = await req.json()
       if (!id) return err('id laporan diperlukan')
@@ -256,13 +257,14 @@ export async function GET(req: NextRequest) {
     }
 
     if (action === 'config') {
-      const globalLimit = await getGlobalLimit()
-      const apiKey      = await getCfg('anthropic_api_key')
-      const maintenance = await getMaintenance()
-      return ok({ globalLimit, apiKey: apiKey ? '••••••••' : '', maintenance })
+      const globalLimit    = await getGlobalLimit()
+      const apiKey         = await getCfg('anthropic_api_key')
+      const anthropicModel = await getCfg('anthropic_model') || 'claude-sonnet-4-5'
+      const maintenance    = await getMaintenance()
+      return ok({ globalLimit, apiKey: apiKey ? '••••••••' : '', anthropicModel, maintenance })
     }
 
-    // ── list all reports (for client-side fetching) ──────────────────────────
+    // ── list all reports (for client-side fetching) ───────────────────────────────────────
     if (action === 'reports') {
       const status = req.nextUrl.searchParams.get('status') // optional: 'open' | 'closed'
       const rows = status
