@@ -1,6 +1,6 @@
 'use client'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+import NavLink from '@/components/admin/NavLink'
 
 const nav = [
   {
@@ -60,7 +60,6 @@ function GizkuLogo() {
 }
 
 export default function AdminSidebar() {
-  const pathname = usePathname()
   const router = useRouter()
 
   function logout() {
@@ -82,23 +81,9 @@ export default function AdminSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 py-4 space-y-1 px-3">
-        {nav.map(n => {
-          const active = pathname === n.href || (n.href !== '/admin' && pathname.startsWith(n.href))
-          return (
-            <Link
-              key={n.href}
-              href={n.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                active
-                  ? 'bg-[#D4F5E4] text-[#1F9D57]'
-                  : 'text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827]'
-              }`}
-            >
-              <span className={active ? 'text-[#2ECC71]' : 'text-[#9CA3AF]'}>{n.icon}</span>
-              {n.label}
-            </Link>
-          )
-        })}
+        {nav.map(n => (
+          <NavLink key={n.href} href={n.href} label={n.label} icon={n.icon} />
+        ))}
       </nav>
 
       {/* Footer */}
