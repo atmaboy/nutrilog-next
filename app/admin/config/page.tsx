@@ -1,8 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 
-// --- Icon SVG ---
+// ─── Icons ───────────────────────────────────────────────────────────────────
 function EyeIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -22,7 +22,38 @@ function EyeOffIcon() {
   )
 }
 
-// --- Section skeleton ---
+// ─── Static sub-components (defined OUTSIDE page fn to preserve focus) ────────
+// PENTING: Section & BtnPrimary harus di luar ConfigPage agar React tidak
+// unmount/remount saat re-render → mencegah kehilangan fokus input.
+
+function Section({
+  title, children, disabled = false,
+}: { title: string; children: React.ReactNode; disabled?: boolean }) {
+  return (
+    <div className={`bg-white ring-1 ring-[#E5E7EB] rounded-xl p-5 shadow-[0_1px_4px_rgba(16,24,40,0.04)] transition-opacity ${
+      disabled ? 'opacity-50 pointer-events-none select-none' : ''
+    }`}>
+      <h2 className="font-semibold text-xs uppercase tracking-wide text-[#6B7280] mb-4">{title}</h2>
+      {children}
+    </div>
+  )
+}
+
+function BtnPrimary({
+  onClick, type = 'button', disabled, children,
+}: { onClick?: () => void; type?: 'button' | 'submit'; disabled: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className="bg-[#2ECC71] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#28B765] transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+    >
+      {children}
+    </button>
+  )
+}
+
 function SectionSkeleton({ rows = 1 }: { rows?: number }) {
   return (
     <div className="bg-white ring-1 ring-[#E5E7EB] rounded-xl p-5 shadow-[0_1px_4px_rgba(16,24,40,0.04)] animate-pulse">
@@ -37,42 +68,55 @@ function SectionSkeleton({ rows = 1 }: { rows?: number }) {
   )
 }
 
+// ─── Input CSS ────────────────────────────────────────────────────────────────
+const inputCls = "w-full border border-[#E5E7EB] rounded-xl px-3 py-2 text-sm bg-white text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#2ECC71] focus:border-transparent transition"
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ConfigPage() {
-  const [token, setToken]         = useState('')
-  const [limit, setLimit]         = useState('')
-  const [apiKey, setApiKey]       = useState('')
+  const [token, setToken]           = useState('')
+  const [limit, setLimit]           = useState('')
+  const [apiKey, setApiKey]         = useState('')       // hanya terisi jika admin mengetik key baru
+  const [apiKeyMasked, setApiKeyMasked] = useState(false) // true = server sudah punya key
   const [showApiKey, setShowApiKey] = useState(false)
-  const [aiModel, setAiModel]     = useState('claude-sonnet-4-5')
-  const [newPwd, setNewPwd]       = useState('')
-  const [mEnabled, setMEnabled]   = useState(false)
-  const [mTitle, setMTitle]       = useState('')
-  const [mDesc, setMDesc]         = useState('')
-  const [saving, setSaving]       = useState<string | null>(null)
-  // true sampai fetch config selesai — semua section non-interaktif
+  const [aiModel, setAiModel]       = useState('claude-sonnet-4-5')
+  const [newPwd, setNewPwd]         = useState('')
+  const [mEnabled, setMEnabled]     = useState(false)
+  const [mTitle, setMTitle]         = useState('')
+  const [mDesc, setMDesc]           = useState('')
+  const [saving, setSaving]         = useState<string | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
 
   useEffect(() => {
-    const t = document.cookie.split(';').find(c => c.includes('nl_admin_token'))?.split('=')[1]?.trim() ?? ''
+    const t = document.cookie
+      .split(';')
+      .find(c => c.trim().startsWith('nl_admin_token='))
+      ?.split('=')
+      .slice(1)
+      .join('=')
+      .trim() ?? ''
     setToken(t)
-    Promise.all([
-      fetch('/api/admin?action=dashboard', { headers: { Authorization: `Bearer ${t}` } }).then(r => r.json()),
-      fetch('/api/admin?action=config',    { headers: { Authorization: `Bearer ${t}` } }).then(r => r.json()),
-    ])
-      .then(([dash, cfg]) => {
-        if (dash.stats?.dailyLimit !== undefined) setLimit(String(dash.stats.dailyLimit))
-        if (cfg.maintenance) {
-          setMEnabled(cfg.maintenance.enabled ?? false)
-          setMTitle(cfg.maintenance.title ?? '')
-          setMDesc(cfg.maintenance.description ?? '')
+
+    fetch('/api/admin?action=config', { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.json())
+      .then(d => {
+        // globalLimit: nilai limit harian saat ini
+        if (d.globalLimit !== undefined) setLimit(String(d.globalLimit))
+        // apiKey: server return '••••••••' jika ada, '' jika belum ada
+        if (d.apiKey) {
+          setApiKeyMasked(true)  // server sudah punya key — tampilkan placeholder
         }
-        if (cfg.dailyLimit !== undefined) setLimit(String(cfg.dailyLimit))
-        if (cfg.anthropicModel) setAiModel(cfg.anthropicModel)
+        if (d.anthropicModel) setAiModel(d.anthropicModel)
+        if (d.maintenance) {
+          setMEnabled(d.maintenance.enabled ?? false)
+          setMTitle(d.maintenance.title ?? '')
+          setMDesc(d.maintenance.description ?? '')
+        }
       })
       .catch(() => {})
       .finally(() => setInitialLoading(false))
   }, [])
 
-  async function save(action: string, body: Record<string, unknown>, label: string) {
+  const save = useCallback(async (action: string, body: Record<string, unknown>, label: string) => {
     setSaving(action)
     try {
       const r = await fetch(`/api/admin?action=${action}`, {
@@ -87,35 +131,8 @@ export default function ConfigPage() {
     } finally {
       setSaving(null)
     }
-  }
+  }, [token])
 
-  const inputCls = "w-full border border-[#E5E7EB] rounded-xl px-3 py-2 text-sm bg-white text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#2ECC71] focus:border-transparent transition"
-
-  const Section = ({
-    title, children, disabled = false,
-  }: { title: string; children: React.ReactNode; disabled?: boolean }) => (
-    <div className={`bg-white ring-1 ring-[#E5E7EB] rounded-xl p-5 shadow-[0_1px_4px_rgba(16,24,40,0.04)] transition-opacity ${
-      disabled ? 'opacity-50 pointer-events-none select-none' : ''
-    }`}>
-      <h2 className="font-semibold text-xs uppercase tracking-wide text-[#6B7280] mb-4">{title}</h2>
-      {children}
-    </div>
-  )
-
-  const BtnPrimary = ({
-    onClick, type = 'button', disabled, children,
-  }: { onClick?: () => void; type?: 'button' | 'submit'; disabled: boolean; children: React.ReactNode }) => (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className="bg-[#2ECC71] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#28B765] transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-    >
-      {children}
-    </button>
-  )
-
-  // Saat fetch awal belum selesai — tampilkan skeleton
   if (initialLoading) {
     return (
       <div className="max-w-xl space-y-6">
@@ -124,7 +141,6 @@ export default function ConfigPage() {
         <SectionSkeleton />
         <SectionSkeleton />
         <SectionSkeleton />
-        {/* Maintenance skeleton lebih tinggi */}
         <div className="bg-white ring-1 ring-[#E5E7EB] rounded-xl p-5 shadow-[0_1px_4px_rgba(16,24,40,0.04)] animate-pulse space-y-3">
           <div className="h-3 w-36 bg-[#E5E7EB] rounded" />
           <div className="flex items-center gap-3">
@@ -144,10 +160,12 @@ export default function ConfigPage() {
       <h1 className="text-2xl font-bold text-[#111827]">Pengaturan</h1>
 
       {/* Batas Analisa Harian */}
-      <Section title="Batas Analisa Harian" disabled={saving === 'update_config_limit'}>
+      <Section title="Batas Analisa Harian">
         <div className="flex gap-2">
           <input
-            type="number" value={limit} onChange={e => setLimit(e.target.value)} min={1} max={9999}
+            type="number" value={limit}
+            onChange={e => setLimit(e.target.value)}
+            min={1} max={9999}
             className={inputCls}
           />
           <BtnPrimary
@@ -162,20 +180,19 @@ export default function ConfigPage() {
       {/* Anthropic API Key */}
       <Section title="Anthropic API Key">
         <div className="flex gap-2">
-          {/* Input + toggle show/hide dalam satu container */}
           <div className="relative flex-1">
             <input
               type={showApiKey ? 'text' : 'password'}
               value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder="sk-ant-... (kosongkan jika tidak ingin mengubah)"
+              onChange={e => { setApiKey(e.target.value); setApiKeyMasked(false) }}
+              placeholder={apiKeyMasked ? 'sk-ant-••••• (key sudah tersimpan, isi untuk mengganti)' : 'sk-ant-...'}
               className={`${inputCls} pr-10`}
             />
             <button
               type="button"
               onClick={() => setShowApiKey(v => !v)}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#6B7280] transition"
-              aria-label={showApiKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
+              aria-label={showApiKey ? 'Sembunyikan' : 'Tampilkan'}
             >
               {showApiKey ? <EyeOffIcon /> : <EyeIcon />}
             </button>
@@ -187,7 +204,9 @@ export default function ConfigPage() {
             {saving === 'update_config' ? '…' : 'Simpan'}
           </BtnPrimary>
         </div>
-        <p className="text-xs text-[#9CA3AF] mt-2">Key saat ini tersimpan aman di server. Isi kolom di atas hanya jika ingin menggantinya.</p>
+        <p className="text-xs text-[#9CA3AF] mt-2">
+          Key aktif tersimpan aman di server. Isi kolom hanya jika ingin menggantinya.
+        </p>
       </Section>
 
       {/* Model AI */}
@@ -214,13 +233,14 @@ export default function ConfigPage() {
         </p>
       </Section>
 
-      {/* Password Admin — pakai form supaya Enter bisa submit & tidak ada bug re-render */}
+      {/* Password Admin */}
       <Section title="Password Admin">
         <form
           onSubmit={e => {
             e.preventDefault()
             if (newPwd.length < 8) return
-            save('update_password', { newPassword: newPwd }, 'Password').then(() => setNewPwd(''))
+            save('update_password', { newPassword: newPwd }, 'Password')
+              .then(() => setNewPwd(''))
           }}
           className="flex gap-2"
         >
@@ -232,10 +252,7 @@ export default function ConfigPage() {
             autoComplete="new-password"
             className={inputCls}
           />
-          <BtnPrimary
-            type="submit"
-            disabled={saving !== null || newPwd.length < 8}
-          >
+          <BtnPrimary type="submit" disabled={saving !== null || newPwd.length < 8}>
             {saving === 'update_password' ? '…' : 'Ubah'}
           </BtnPrimary>
         </form>
@@ -248,21 +265,30 @@ export default function ConfigPage() {
       <Section title="Mode Maintenance">
         <div className="space-y-3">
           <button
-            type="button" onClick={() => setMEnabled(!mEnabled)}
-            role="switch" aria-checked={mEnabled}
+            type="button"
+            onClick={() => setMEnabled(v => !v)}
+            role="switch"
+            aria-checked={mEnabled}
             className="flex items-center gap-3"
           >
             <div className={`w-10 h-6 rounded-full transition-colors relative ${mEnabled ? 'bg-[#2ECC71]' : 'bg-[#E5E7EB]'}`}>
               <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${mEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
             </div>
-            <span className="text-sm font-medium text-[#111827]">{mEnabled ? 'Aktif — aplikasi offline' : 'Nonaktif'}</span>
+            <span className="text-sm font-medium text-[#111827]">
+              {mEnabled ? 'Aktif — aplikasi offline' : 'Nonaktif'}
+            </span>
           </button>
           <input
-            value={mTitle} onChange={e => setMTitle(e.target.value)} placeholder="Judul maintenance"
+            value={mTitle}
+            onChange={e => setMTitle(e.target.value)}
+            placeholder="Judul maintenance"
             className={inputCls}
           />
           <textarea
-            value={mDesc} onChange={e => setMDesc(e.target.value)} placeholder="Deskripsi" rows={2}
+            value={mDesc}
+            onChange={e => setMDesc(e.target.value)}
+            placeholder="Deskripsi"
+            rows={2}
             className={`${inputCls} resize-none`}
           />
           <BtnPrimary
