@@ -12,14 +12,18 @@ export default async function UsersPage() {
   const allUsers = await db.select().from(users).orderBy(desc(users.createdAt))
   const usersWithStats = await Promise.all(allUsers.map(async u => {
     const [[mr], [td]] = await Promise.all([
+      // Total meal: count dari tabel meals (source of truth)
       db.select({ cnt: count() }).from(meals).where(eq(meals.userId, u.id)),
-      db.select({ cnt: count() }).from(dailyUsage).where(sql`user_id = ${u.id} AND date = ${today}`),
+      // Hari ini: ambil nilai count dari dailyUsage, bukan row count
+      db.select({ cnt: sql<number>`coalesce(sum(${dailyUsage.count}), 0)` })
+        .from(dailyUsage)
+        .where(sql`${dailyUsage.userId} = ${u.id} AND ${dailyUsage.date} = ${today}`),
     ])
     return { ...u, totalMeals: Number(mr.cnt ?? 0), todayUsage: Number(td.cnt ?? 0) }
   }))
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 w-full">
       <h1 className="text-2xl font-bold text-[#111827]">Manajemen User</h1>
       <p className="text-sm text-[#6B7280] -mt-4">
         Limit global: <strong className="text-[#111827]">{globalLimit} foto/hari</strong>
