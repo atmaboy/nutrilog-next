@@ -1,22 +1,41 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-const STORAGE_KEY = 'gizku_brand_notice_dismissed'
+type AnnouncementData = {
+  enabled: boolean
+  title: string
+  body: string
+  icon: string
+  version: string
+}
 
 export default function BrandAnnouncement() {
+  const [data, setData]       = useState<AnnouncementData | null>(null)
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    const dismissed = localStorage.getItem(STORAGE_KEY)
-    if (!dismissed) setVisible(true)
+    fetch('/api/announcement')
+      .then(r => r.json())
+      .then((d: AnnouncementData) => {
+        if (!d.enabled || !d.title) return
+        // Dismiss key menyertakan version — kalau admin reset, notif muncul lagi
+        const key = `gizku_announcement_dismissed_v${d.version}`
+        if (!localStorage.getItem(key)) {
+          setData(d)
+          setVisible(true)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   function dismiss() {
-    localStorage.setItem(STORAGE_KEY, '1')
+    if (!data) return
+    const key = `gizku_announcement_dismissed_v${data.version}`
+    localStorage.setItem(key, '1')
     setVisible(false)
   }
 
-  if (!visible) return null
+  if (!visible || !data) return null
 
   return (
     <div style={{
@@ -37,10 +56,8 @@ export default function BrandAnnouncement() {
         }
       `}</style>
 
-      {/* Icon */}
-      <span style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>📢</span>
+      <span style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>{data.icon}</span>
 
-      {/* Text */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontWeight: 700,
@@ -48,19 +65,20 @@ export default function BrandAnnouncement() {
           color: '#fff',
           marginBottom: 2,
           lineHeight: 1.4,
-        }}>
-          Nutrilog kini bernama <strong>Gizku</strong>! 🎉
-        </div>
-        <div style={{
-          fontSize: 12,
-          color: 'rgba(255,255,255,0.85)',
-          lineHeight: 1.5,
-        }}>
-          Nama baru, semangat baru — semua fitur tetap sama seperti biasa.
-        </div>
+        }}
+          dangerouslySetInnerHTML={{ __html: data.title }}
+        />
+        {data.body && (
+          <div style={{
+            fontSize: 12,
+            color: 'rgba(255,255,255,0.85)',
+            lineHeight: 1.5,
+          }}
+            dangerouslySetInnerHTML={{ __html: data.body }}
+          />
+        )}
       </div>
 
-      {/* Close */}
       <button
         onClick={dismiss}
         aria-label="Tutup notifikasi"

@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 
-// ─── Icons ───────────────────────────────────────────────────────────────────
+// --- Icons ---
 function EyeIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -11,7 +11,6 @@ function EyeIcon() {
     </svg>
   )
 }
-
 function EyeOffIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -22,10 +21,7 @@ function EyeOffIcon() {
   )
 }
 
-// ─── Static sub-components (defined OUTSIDE page fn to preserve focus) ────────
-// PENTING: Section & BtnPrimary harus di luar ConfigPage agar React tidak
-// unmount/remount saat re-render → mencegah kehilangan fokus input.
-
+// --- Static sub-components (OUTSIDE page fn — prevents focus loss on re-render) ---
 function Section({
   title, children, disabled = false,
 }: { title: string; children: React.ReactNode; disabled?: boolean }) {
@@ -68,62 +64,75 @@ function SectionSkeleton({ rows = 1 }: { rows?: number }) {
   )
 }
 
-// ─── Input CSS ────────────────────────────────────────────────────────────────
 const inputCls = "w-full border border-[#E5E7EB] rounded-xl px-3 py-2 text-sm bg-white text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#2ECC71] focus:border-transparent transition"
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ConfigPage() {
-  const [token, setToken]           = useState('')
-  const [limit, setLimit]           = useState('')
-  const [apiKey, setApiKey]         = useState('')       // hanya terisi jika admin mengetik key baru
-  const [apiKeyMasked, setApiKeyMasked] = useState(false) // true = server sudah punya key
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [aiModel, setAiModel]       = useState('claude-sonnet-4-5')
-  const [newPwd, setNewPwd]         = useState('')
-  const [mEnabled, setMEnabled]     = useState(false)
-  const [mTitle, setMTitle]         = useState('')
-  const [mDesc, setMDesc]           = useState('')
-  const [saving, setSaving]         = useState<string | null>(null)
+  const [token, setToken]               = useState('')
+  const [limit, setLimit]               = useState('')
+  const [apiKey, setApiKey]             = useState('')
+  const [apiKeyMasked, setApiKeyMasked] = useState(false)
+  const [showApiKey, setShowApiKey]     = useState(false)
+  const [aiModel, setAiModel]           = useState('claude-sonnet-4-5')
+  const [newPwd, setNewPwd]             = useState('')
+  const [mEnabled, setMEnabled]         = useState(false)
+  const [mTitle, setMTitle]             = useState('')
+  const [mDesc, setMDesc]               = useState('')
+  // Announcement states
+  const [annEnabled, setAnnEnabled]     = useState(false)
+  const [annIcon, setAnnIcon]           = useState('📢')
+  const [annTitle, setAnnTitle]         = useState('')
+  const [annBody, setAnnBody]           = useState('')
+  const [annVersion, setAnnVersion]     = useState('1')
+
+  const [saving, setSaving]             = useState<string | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
 
   useEffect(() => {
     const t = document.cookie
       .split(';')
       .find(c => c.trim().startsWith('nl_admin_token='))
-      ?.split('=')
-      .slice(1)
-      .join('=')
-      .trim() ?? ''
+      ?.split('=').slice(1).join('=').trim() ?? ''
     setToken(t)
 
-    fetch('/api/admin?action=config', { headers: { Authorization: `Bearer ${t}` } })
-      .then(r => r.json())
-      .then(d => {
-        // globalLimit: nilai limit harian saat ini
-        if (d.globalLimit !== undefined) setLimit(String(d.globalLimit))
-        // apiKey: server return '••••••••' jika ada, '' jika belum ada
-        if (d.apiKey) {
-          setApiKeyMasked(true)  // server sudah punya key — tampilkan placeholder
+    Promise.all([
+      fetch('/api/admin?action=config', { headers: { Authorization: `Bearer ${t}` } }).then(r => r.json()),
+      fetch('/api/announcement').then(r => r.json()),
+    ])
+      .then(([cfg, ann]) => {
+        if (cfg.globalLimit !== undefined) setLimit(String(cfg.globalLimit))
+        if (cfg.apiKey) setApiKeyMasked(true)
+        if (cfg.anthropicModel) setAiModel(cfg.anthropicModel)
+        if (cfg.maintenance) {
+          setMEnabled(cfg.maintenance.enabled ?? false)
+          setMTitle(cfg.maintenance.title ?? '')
+          setMDesc(cfg.maintenance.description ?? '')
         }
-        if (d.anthropicModel) setAiModel(d.anthropicModel)
-        if (d.maintenance) {
-          setMEnabled(d.maintenance.enabled ?? false)
-          setMTitle(d.maintenance.title ?? '')
-          setMDesc(d.maintenance.description ?? '')
-        }
+        // Announcement
+        setAnnEnabled(ann.enabled ?? false)
+        setAnnTitle(ann.title   ?? '')
+        setAnnBody(ann.body    ?? '')
+        setAnnIcon(ann.icon    ?? '📢')
+        setAnnVersion(ann.version ?? '1')
       })
       .catch(() => {})
       .finally(() => setInitialLoading(false))
   }, [])
 
-  const save = useCallback(async (action: string, body: Record<string, unknown>, label: string) => {
+  const save = useCallback(async (
+    action: string,
+    body: Record<string, unknown>,
+    label: string,
+    customFetch?: () => Promise<Response>,
+  ) => {
     setSaving(action)
     try {
-      const r = await fetch(`/api/admin?action=${action}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      })
+      const r = customFetch
+        ? await customFetch()
+        : await fetch(`/api/admin?action=${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(body),
+          })
       const d = await r.json()
       r.ok ? toast.success(`${label} berhasil disimpan`) : toast.error(d.error ?? 'Terjadi kesalahan')
     } catch {
@@ -133,6 +142,28 @@ export default function ConfigPage() {
     }
   }, [token])
 
+  async function saveAnnouncement(resetDismiss = false) {
+    await save(
+      'announcement',
+      {},
+      resetDismiss ? 'Notifikasi (+ reset dismiss)' : 'Notifikasi',
+      () => fetch('/api/announcement', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          enabled: annEnabled,
+          title:   annTitle,
+          body:    annBody,
+          icon:    annIcon,
+          resetDismiss,
+        }),
+      }),
+    )
+    if (resetDismiss) {
+      setAnnVersion(v => String(parseInt(v, 10) + 1))
+    }
+  }
+
   if (initialLoading) {
     return (
       <div className="max-w-xl space-y-6">
@@ -141,15 +172,19 @@ export default function ConfigPage() {
         <SectionSkeleton />
         <SectionSkeleton />
         <SectionSkeleton />
-        <div className="bg-white ring-1 ring-[#E5E7EB] rounded-xl p-5 shadow-[0_1px_4px_rgba(16,24,40,0.04)] animate-pulse space-y-3">
+        <div className="bg-white ring-1 ring-[#E5E7EB] rounded-xl p-5 animate-pulse space-y-3">
           <div className="h-3 w-36 bg-[#E5E7EB] rounded" />
-          <div className="flex items-center gap-3">
-            <div className="h-6 w-10 bg-[#E5E7EB] rounded-full" />
-            <div className="h-4 w-24 bg-[#F3F4F6] rounded" />
-          </div>
+          <div className="flex items-center gap-3"><div className="h-6 w-10 bg-[#E5E7EB] rounded-full" /><div className="h-4 w-24 bg-[#F3F4F6] rounded" /></div>
           <div className="h-10 w-full bg-[#F3F4F6] rounded-xl" />
           <div className="h-16 w-full bg-[#F3F4F6] rounded-xl" />
           <div className="h-10 w-36 bg-[#E5E7EB] rounded-xl" />
+        </div>
+        <div className="bg-white ring-1 ring-[#E5E7EB] rounded-xl p-5 animate-pulse space-y-3">
+          <div className="h-3 w-36 bg-[#E5E7EB] rounded" />
+          <div className="flex items-center gap-3"><div className="h-6 w-10 bg-[#E5E7EB] rounded-full" /><div className="h-4 w-24 bg-[#F3F4F6] rounded" /></div>
+          <div className="h-10 w-full bg-[#F3F4F6] rounded-xl" />
+          <div className="h-16 w-full bg-[#F3F4F6] rounded-xl" />
+          <div className="flex gap-2"><div className="h-10 w-28 bg-[#E5E7EB] rounded-xl" /><div className="h-10 w-40 bg-[#E5E7EB] rounded-xl" /></div>
         </div>
       </div>
     )
@@ -204,19 +239,13 @@ export default function ConfigPage() {
             {saving === 'update_config' ? '…' : 'Simpan'}
           </BtnPrimary>
         </div>
-        <p className="text-xs text-[#9CA3AF] mt-2">
-          Key aktif tersimpan aman di server. Isi kolom hanya jika ingin menggantinya.
-        </p>
+        <p className="text-xs text-[#9CA3AF] mt-2">Key aktif tersimpan aman di server. Isi kolom hanya jika ingin menggantinya.</p>
       </Section>
 
       {/* Model AI */}
       <Section title="Model AI (Claude)">
         <div className="flex gap-2">
-          <select
-            value={aiModel}
-            onChange={e => setAiModel(e.target.value)}
-            className={inputCls}
-          >
+          <select value={aiModel} onChange={e => setAiModel(e.target.value)} className={inputCls}>
             <option value="claude-haiku-3-5">claude-haiku-3-5 — Cepat &amp; Hemat</option>
             <option value="claude-sonnet-4-5">claude-sonnet-4-5 — Recommended ✓</option>
             <option value="claude-opus-4-5">claude-opus-4-5 — Paling Canggih</option>
@@ -228,9 +257,7 @@ export default function ConfigPage() {
             {saving === 'update_config' ? '…' : 'Simpan'}
           </BtnPrimary>
         </div>
-        <p className="text-xs text-[#6B7280] mt-2">
-          Ganti ke model lebih ringan jika muncul error &quot;Server AI sedang sibuk&quot;.
-        </p>
+        <p className="text-xs text-[#6B7280] mt-2">Ganti ke model lebih ringan jika muncul error &quot;Server AI sedang sibuk&quot;.</p>
       </Section>
 
       {/* Password Admin */}
@@ -239,17 +266,13 @@ export default function ConfigPage() {
           onSubmit={e => {
             e.preventDefault()
             if (newPwd.length < 8) return
-            save('update_password', { newPassword: newPwd }, 'Password')
-              .then(() => setNewPwd(''))
+            save('update_password', { newPassword: newPwd }, 'Password').then(() => setNewPwd(''))
           }}
           className="flex gap-2"
         >
           <input
-            type="password"
-            value={newPwd}
-            onChange={e => setNewPwd(e.target.value)}
-            placeholder="Min. 8 karakter"
-            autoComplete="new-password"
+            type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)}
+            placeholder="Min. 8 karakter" autoComplete="new-password"
             className={inputCls}
           />
           <BtnPrimary type="submit" disabled={saving !== null || newPwd.length < 8}>
@@ -261,42 +284,133 @@ export default function ConfigPage() {
         )}
       </Section>
 
-      {/* Maintenance */}
+      {/* Mode Maintenance */}
       <Section title="Mode Maintenance">
         <div className="space-y-3">
           <button
-            type="button"
-            onClick={() => setMEnabled(v => !v)}
-            role="switch"
-            aria-checked={mEnabled}
+            type="button" onClick={() => setMEnabled(v => !v)}
+            role="switch" aria-checked={mEnabled}
             className="flex items-center gap-3"
           >
             <div className={`w-10 h-6 rounded-full transition-colors relative ${mEnabled ? 'bg-[#2ECC71]' : 'bg-[#E5E7EB]'}`}>
               <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${mEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
             </div>
-            <span className="text-sm font-medium text-[#111827]">
-              {mEnabled ? 'Aktif — aplikasi offline' : 'Nonaktif'}
-            </span>
+            <span className="text-sm font-medium text-[#111827]">{mEnabled ? 'Aktif — aplikasi offline' : 'Nonaktif'}</span>
           </button>
-          <input
-            value={mTitle}
-            onChange={e => setMTitle(e.target.value)}
-            placeholder="Judul maintenance"
-            className={inputCls}
-          />
-          <textarea
-            value={mDesc}
-            onChange={e => setMDesc(e.target.value)}
-            placeholder="Deskripsi"
-            rows={2}
-            className={`${inputCls} resize-none`}
-          />
+          <input value={mTitle} onChange={e => setMTitle(e.target.value)} placeholder="Judul maintenance" className={inputCls} />
+          <textarea value={mDesc} onChange={e => setMDesc(e.target.value)} placeholder="Deskripsi" rows={2} className={`${inputCls} resize-none`} />
           <BtnPrimary
             onClick={() => save('update_maintenance', { enabled: mEnabled, title: mTitle, description: mDesc }, 'Maintenance')}
             disabled={saving !== null}
           >
             {saving === 'update_maintenance' ? '…' : 'Simpan Maintenance'}
           </BtnPrimary>
+        </div>
+      </Section>
+
+      {/* Notifikasi / Announcement */}
+      <Section title="Notifikasi Pengguna">
+        <div className="space-y-4">
+          {/* Toggle aktif/nonaktif */}
+          <button
+            type="button" onClick={() => setAnnEnabled(v => !v)}
+            role="switch" aria-checked={annEnabled}
+            className="flex items-center gap-3"
+          >
+            <div className={`w-10 h-6 rounded-full transition-colors relative ${annEnabled ? 'bg-[#2ECC71]' : 'bg-[#E5E7EB]'}`}>
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${annEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+            </div>
+            <span className="text-sm font-medium text-[#111827]">
+              {annEnabled ? 'Notifikasi aktif — tampil di halaman login' : 'Nonaktif'}
+            </span>
+          </button>
+
+          {/* Icon emoji */}
+          <div>
+            <label className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide block mb-1">Icon (emoji)</label>
+            <input
+              value={annIcon} onChange={e => setAnnIcon(e.target.value)}
+              placeholder="📢"
+              className={`${inputCls} w-20 text-center text-lg`}
+              maxLength={4}
+            />
+          </div>
+
+          {/* Judul */}
+          <div>
+            <label className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide block mb-1">Judul</label>
+            <input
+              value={annTitle} onChange={e => setAnnTitle(e.target.value)}
+              placeholder="Contoh: Fitur baru tersedia! 🎉"
+              className={inputCls}
+            />
+            <p className="text-xs text-[#9CA3AF] mt-1">Boleh pakai HTML sederhana: <code className="bg-[#F3F4F6] px-1 rounded">&lt;strong&gt;tebal&lt;/strong&gt;</code></p>
+          </div>
+
+          {/* Isi pesan */}
+          <div>
+            <label className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide block mb-1">Pesan</label>
+            <textarea
+              value={annBody} onChange={e => setAnnBody(e.target.value)}
+              placeholder="Deskripsi singkat notifikasi..."
+              rows={2}
+              className={`${inputCls} resize-none`}
+            />
+          </div>
+
+          {/* Preview */}
+          {annTitle && (
+            <div>
+              <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide mb-2">Preview</p>
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                background: 'linear-gradient(135deg, #FF8C00 0%, #FFA733 100%)',
+                borderRadius: 14,
+                padding: '11px 14px',
+                boxShadow: '0 2px 8px rgba(255,140,0,0.2)',
+              }}>
+                <span style={{ fontSize: 18, lineHeight: 1.3, flexShrink: 0 }}>{annIcon || '📢'}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#fff', marginBottom: 2, lineHeight: 1.4 }}
+                    dangerouslySetInnerHTML={{ __html: annTitle }}
+                  />
+                  {annBody && (
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}
+                      dangerouslySetInnerHTML={{ __html: annBody }}
+                    />
+                  )}
+                </div>
+                <div style={{
+                  background: 'rgba(255,255,255,0.2)', borderRadius: 8,
+                  width: 24, height: 24, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', color: '#fff', fontSize: 14, flexShrink: 0,
+                }}>✕</div>
+              </div>
+            </div>
+          )}
+
+          {/* Info versi dismiss */}
+          <p className="text-xs text-[#9CA3AF]">
+            Versi notifikasi saat ini: <strong className="text-[#6B7280]">v{annVersion}</strong>.
+            Setiap kali &quot;Reset Dismiss&quot;, versi naik dan semua user akan melihat notifikasi lagi meskipun sudah pernah menutupnya.
+          </p>
+
+          {/* Tombol aksi */}
+          <div className="flex gap-2 flex-wrap">
+            <BtnPrimary onClick={() => saveAnnouncement(false)} disabled={saving !== null}>
+              {saving === 'announcement' ? '…' : 'Simpan'}
+            </BtnPrimary>
+            <button
+              type="button"
+              onClick={() => saveAnnouncement(true)}
+              disabled={saving !== null}
+              className="border border-[#E5E7EB] text-[#6B7280] px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#F9FAFB] transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {saving === 'announcement' ? '…' : '🔄 Simpan + Reset Dismiss'}
+            </button>
+          </div>
         </div>
       </Section>
     </div>
