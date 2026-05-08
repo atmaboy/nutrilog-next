@@ -15,7 +15,6 @@ export default function ReportActions({ id, status }: { id: string; status: stri
       {status === 'open' && (
         <button
           onClick={async () => {
-            // FIX: gunakan 'closed' bukan 'resolved' — backend hanya terima 'open' | 'closed'
             const r = await fetch('/api/admin?action=update_report', {
               method: 'POST',
               headers: {
@@ -24,9 +23,12 @@ export default function ReportActions({ id, status }: { id: string; status: stri
               },
               body: JSON.stringify({ id, status: 'closed' }),
             })
-            r.ok
-              ? (toast.success('Laporan ditandai selesai'), router.refresh())
-              : toast.error('Gagal memperbarui laporan')
+            if (r.ok) {
+              toast.success('Laporan ditandai selesai')
+              router.refresh()
+            } else {
+              toast.error('Gagal memperbarui laporan')
+            }
           }}
           className="text-xs bg-[#2ECC71] text-white px-3 py-1.5 rounded-lg font-medium hover:bg-[#28B765] transition"
         >
@@ -36,7 +38,6 @@ export default function ReportActions({ id, status }: { id: string; status: stri
       <button
         onClick={async () => {
           if (!confirm('Hapus laporan ini?')) return
-          // FIX: kirim id sebagai JSON body agar bisa dibaca req.json() di backend
           const r = await fetch('/api/admin?action=delete_report', {
             method: 'DELETE',
             headers: {
@@ -45,9 +46,12 @@ export default function ReportActions({ id, status }: { id: string; status: stri
             },
             body: JSON.stringify({ id }),
           })
-          r.ok
-            ? (toast.success('Laporan dihapus'), router.refresh())
-            : toast.error('Gagal menghapus laporan')
+          if (r.ok) {
+            toast.success('Laporan dihapus')
+            router.refresh()
+          } else {
+            toast.error('Gagal menghapus laporan')
+          }
         }}
         className="text-xs text-red-500 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-50 transition"
       >

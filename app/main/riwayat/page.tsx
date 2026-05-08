@@ -15,7 +15,7 @@ type Meal = {
   totalFat: string
   imageUrl?: string | null
   loggedAt: string
-  rawAnalysis?: { dishes: Dish[]; total: any; notes?: string; healthScore?: number; assessment?: string }
+  rawAnalysis?: { dishes: Dish[]; total: Record<string, unknown>; notes?: string; healthScore?: number; assessment?: string }
 }
 type HistoryData = { meals: Meal[]; total: number; page: number; totalPages: number }
 
