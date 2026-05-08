@@ -15,13 +15,14 @@ export default function ReportActions({ id, status }: { id: string; status: stri
       {status === 'open' && (
         <button
           onClick={async () => {
+            // FIX: gunakan 'closed' bukan 'resolved' — backend hanya terima 'open' | 'closed'
             const r = await fetch('/api/admin?action=update_report', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${tok()}`,
               },
-              body: JSON.stringify({ id, status: 'resolved' }),
+              body: JSON.stringify({ id, status: 'closed' }),
             })
             r.ok
               ? (toast.success('Laporan ditandai selesai'), router.refresh())
@@ -35,9 +36,14 @@ export default function ReportActions({ id, status }: { id: string; status: stri
       <button
         onClick={async () => {
           if (!confirm('Hapus laporan ini?')) return
-          const r = await fetch(`/api/admin?action=delete_report&id=${id}`, {
+          // FIX: kirim id sebagai JSON body agar bisa dibaca req.json() di backend
+          const r = await fetch('/api/admin?action=delete_report', {
             method: 'DELETE',
-            headers: { Authorization: `Bearer ${tok()}` },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${tok()}`,
+            },
+            body: JSON.stringify({ id }),
           })
           r.ok
             ? (toast.success('Laporan dihapus'), router.refresh())
