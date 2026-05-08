@@ -1,7 +1,6 @@
 // app/admin/layout.tsx
 'use client'
 import { usePathname } from 'next/navigation'
-import { Suspense } from 'react'
 import AdminSidebar from '@/components/admin/AdminSidebar'
 import NavProgress from '@/components/admin/NavProgress'
 
@@ -11,9 +10,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex min-h-screen bg-[#F9FAFB]">
-      {/* Progress bar navigasi — muncul saat pindah menu */}
       {!isLoginPage && <NavProgress />}
-
       {!isLoginPage && <AdminSidebar />}
       <main className={`${isLoginPage ? 'w-full' : 'flex-1 min-w-0 p-6 overflow-auto'}`}>
         {children}

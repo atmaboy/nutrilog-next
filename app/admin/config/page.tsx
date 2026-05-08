@@ -43,7 +43,11 @@ export default function ConfigPage() {
         body: JSON.stringify(body),
       })
       const d = await r.json()
-      r.ok ? toast.success(`${label} berhasil disimpan`) : toast.error(d.error ?? 'Terjadi kesalahan')
+      if (r.ok) {
+        toast.success(`${label} berhasil disimpan`)
+      } else {
+        toast.error(d.error ?? 'Terjadi kesalahan')
+      }
     } catch {
       toast.error('Gagal menghubungi server')
     } finally {
