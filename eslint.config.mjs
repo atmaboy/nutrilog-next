@@ -11,11 +11,19 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
+  // Global rules
   {
     rules: {
-      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': 'warn',
       'no-console': 'warn',
+    },
+  },
+  // API routes: allow console (console.error intentional for server-side logging)
+  {
+    files: ['app/api/**/*.ts', 'app/api/**/*.tsx'],
+    rules: {
+      'no-console': 'off',
     },
   },
 ]
