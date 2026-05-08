@@ -113,14 +113,16 @@ export default function MealHistoryModal({
   username: string
   onClose: () => void
 }) {
-  const [data, setData]           = useState<PageData | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [paging, setPaging]       = useState(false)
-  const [page, setPage]           = useState(1)
+  const [data, setData]             = useState<PageData | null>(null)
+  const [loading, setLoading]       = useState(true)
+  const [paging, setPaging]         = useState(false)
+  const [page, setPage]             = useState(1)
   const [filterDate, setFilterDate] = useState('')
-  const [expanded, setExpanded]   = useState<string | null>(null)
-  const [deleting, setDeleting]   = useState<string | null>(null)
-  const dateInputRef              = useRef<HTMLInputElement>(null)
+  const [expanded, setExpanded]     = useState<string | null>(null)
+  const [deleting, setDeleting]     = useState<string | null>(null)
+  // ── NEW: lightbox state ──
+  const [lightbox, setLightbox]     = useState<{ url: string; name: string } | null>(null)
+  const dateInputRef                = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   const tok = () =>
@@ -150,6 +152,14 @@ export default function MealHistoryModal({
 
   useEffect(() => { load(1, false, '') }, [load])
 
+  // ── NEW: tutup lightbox dengan Escape ──
+  useEffect(() => {
+    if (!lightbox) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [lightbox])
+
   function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setFilterDate(val)
@@ -160,14 +170,11 @@ export default function MealHistoryModal({
     load(1, true, '')
   }
 
-  /** Klik di mana saja pada wrapper filter → buka date picker */
   function handleFilterWrapperClick(e: React.MouseEvent<HTMLDivElement>) {
-    // Jangan trigger ulang jika klik langsung di input itu sendiri
     if (e.target === dateInputRef.current) return
     try {
       dateInputRef.current?.showPicker()
     } catch {
-      // showPicker() tidak tersedia di beberapa browser lama — fallback: focus saja
       dateInputRef.current?.focus()
     }
   }
@@ -215,308 +222,448 @@ export default function MealHistoryModal({
     })
   }
 
-  const meals      = data?.meals ?? []
-  const totalPages = data?.totalPages ?? 1
-  const total      = data?.total ?? 0
+  const meals       = data?.meals ?? []
+  const totalPages  = data?.totalPages ?? 1
+  const total       = data?.total ?? 0
   const isFiltering = filterDate !== ''
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="bg-white ring-1 ring-[#E5E7EB] rounded-2xl shadow-xl w-full max-w-2xl max-h-[88vh] flex flex-col">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E7EB]">
-          <div>
-            <h2 className="text-base font-semibold text-[#111827]">Riwayat Analisa Makanan</h2>
-            <p className="text-xs text-[#6B7280] mt-0.5">
-              @{username}
-              {data && (
-                isFiltering
-                  ? <> &middot; <span className="text-[#111827] font-medium">{total} entri</span> pada {fmtDateStr(filterDate)}</>
-                  : <> &middot; <span className="text-[#111827] font-medium">{total} entri</span> total</>
-              )}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-[#6B7280] hover:text-[#111827] transition w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F3F4F6]"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Filter bar */}
-        <div className="px-6 pt-3 pb-2 border-b border-[#E5E7EB] flex items-center gap-2">
-          {/*
-            Wrapper div bertindak sebagai hit-area penuh.
-            onClick → showPicker() agar klik di mana saja membuka date picker,
-            bukan hanya di icon kalender browser di ujung kanan.
-          */}
+    <>
+      {/* ── LIGHTBOX ── */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          {/* Toolbar lightbox */}
           <div
-            role="button"
-            aria-label="Pilih tanggal filter"
-            tabIndex={0}
-            onClick={handleFilterWrapperClick}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dateInputRef.current?.showPicker() } }}
-            className="relative flex-1 cursor-pointer"
+            className="w-full max-w-2xl flex items-center justify-between mb-3"
+            onClick={e => e.stopPropagation()}
           >
-            {/* Icon kalender custom (kiri) */}
-            <svg
-              width="13" height="13" viewBox="0 0 24 24"
-              fill="none" stroke={filterDate ? '#2ECC71' : '#9CA3AF'}
-              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none z-10"
-            >
-              <rect x="3" y="4" width="18" height="18" rx="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/>
-              <line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            <input
-              ref={dateInputRef}
-              type="date"
-              value={filterDate}
-              max={new Date().toISOString().split('T')[0]}
-              onChange={handleDateChange}
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border transition outline-none cursor-pointer"
-              style={{
-                borderColor: filterDate ? '#BBF7D0' : '#E5E7EB',
-                background:  filterDate ? '#F0FDF4' : '#F9FAFB',
-                color:       filterDate ? '#111827' : '#6B7280',
-                // Sembunyikan icon kalender bawaan browser supaya tidak dobel dengan icon custom kiri
-                colorScheme: 'light',
-              }}
-            />
-          </div>
-          {filterDate && (
-            <button
-              onClick={handleResetFilter}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition whitespace-nowrap"
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-              Reset
-            </button>
-          )}
-        </div>
-
-        {/* Body scroll */}
-        <div className="overflow-y-auto flex-1 p-4 space-y-3">
-
-          {/* Loading states */}
-          {(loading || paging) && (
-            <div className="space-y-3">
-              {[1,2,3].map(i => (
-                <div key={i} className="border border-[#E5E7EB] rounded-xl p-4 space-y-2 animate-pulse">
-                  <div className="h-3.5 bg-[#F3F4F6] rounded w-3/4" />
-                  <div className="h-3 bg-[#F3F4F6] rounded w-1/3" />
-                  <div className="flex gap-3 mt-2">
-                    <div className="h-3 bg-[#F3F4F6] rounded w-16" />
-                    <div className="h-3 bg-[#F3F4F6] rounded w-16" />
-                    <div className="h-3 bg-[#F3F4F6] rounded w-16" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Empty — filter active */}
-          {!loading && !paging && meals.length === 0 && isFiltering && (
-            <div className="py-10 text-center">
-              <div className="flex justify-center mb-3">
-                <CalendarIcon size={36} color="#D1D5DB" />
-              </div>
-              <p className="text-sm font-semibold text-[#111827] mb-1">Tidak ada riwayat makanan</p>
-              <p className="text-xs text-[#6B7280] mb-4">
-                Tidak ditemukan catatan pada <strong className="text-[#111827]">{fmtDateStr(filterDate)}</strong>
-              </p>
-              <button
-                onClick={handleResetFilter}
-                className="text-xs px-3 py-1.5 rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] text-[#166534] hover:bg-[#D4F5E4] transition"
+            <p className="text-white/80 text-sm font-medium truncate max-w-xs">
+              {lightbox.name}
+            </p>
+            <div className="flex items-center gap-2">
+              {/* Tombol download */}
+              <a
+                href={lightbox.url}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs transition"
+                onClick={e => e.stopPropagation()}
               >
-                Lihat Semua Riwayat
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download
+              </a>
+              {/* Tombol tutup */}
+              <button
+                onClick={() => setLightbox(null)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs transition"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+                Tutup (Esc)
               </button>
             </div>
-          )}
+          </div>
+          {/* Foto */}
+          <div
+            className="w-full max-w-2xl flex items-center justify-center"
+            onClick={e => e.stopPropagation()}
+          >
+            <img
+              src={lightbox.url}
+              alt={lightbox.name}
+              className="max-h-[70vh] w-full object-contain rounded-xl shadow-2xl ring-1 ring-white/10"
+            />
+          </div>
+          <p className="text-white/40 text-xs mt-3">Klik di luar foto atau tekan Esc untuk menutup</p>
+        </div>
+      )}
 
-          {/* Empty — no filter */}
-          {!loading && !paging && meals.length === 0 && !isFiltering && (
-            <div className="py-10 text-center text-[#6B7280] text-sm">
-              Belum ada riwayat analisa untuk user ini.
+      {/* ── MODAL UTAMA ── */}
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+        onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      >
+        <div className="bg-white ring-1 ring-[#E5E7EB] rounded-2xl shadow-xl w-full max-w-2xl max-h-[88vh] flex flex-col">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5E7EB]">
+            <div>
+              <h2 className="text-base font-semibold text-[#111827]">Riwayat Analisa Makanan</h2>
+              <p className="text-xs text-[#6B7280] mt-0.5">
+                @{username}
+                {data && (
+                  isFiltering
+                    ? <> &middot; <span className="text-[#111827] font-medium">{total} entri</span> pada {fmtDateStr(filterDate)}</>
+                    : <> &middot; <span className="text-[#111827] font-medium">{total} entri</span> total</>
+                )}
+              </p>
             </div>
-          )}
+            <button
+              onClick={onClose}
+              className="text-[#6B7280] hover:text-[#111827] transition w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#F3F4F6]"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
 
-          {/* Meal list */}
-          {!loading && !paging && meals.map(meal => {
-            const menuItems  = getMenuItems(meal)
-            const desc       = getDescription(meal)
-            const isExpanded = expanded === meal.id
+          {/* Filter bar */}
+          <div className="px-6 pt-3 pb-2 border-b border-[#E5E7EB] flex items-center gap-2">
+            <div
+              role="button"
+              aria-label="Pilih tanggal filter"
+              tabIndex={0}
+              onClick={handleFilterWrapperClick}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dateInputRef.current?.showPicker() } }}
+              className="relative flex-1 cursor-pointer"
+            >
+              <svg
+                width="13" height="13" viewBox="0 0 24 24"
+                fill="none" stroke={filterDate ? '#2ECC71' : '#9CA3AF'}
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none z-10"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={filterDate}
+                max={new Date().toISOString().split('T')[0]}
+                onChange={handleDateChange}
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border transition outline-none cursor-pointer"
+                style={{
+                  borderColor: filterDate ? '#BBF7D0' : '#E5E7EB',
+                  background:  filterDate ? '#F0FDF4' : '#F9FAFB',
+                  color:       filterDate ? '#111827' : '#6B7280',
+                  colorScheme: 'light',
+                }}
+              />
+            </div>
+            {filterDate && (
+              <button
+                onClick={handleResetFilter}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition whitespace-nowrap"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+                Reset
+              </button>
+            )}
+          </div>
 
-            return (
-              <div key={meal.id} className="border border-[#E5E7EB] rounded-xl overflow-hidden bg-white">
-                <div className="flex items-start gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-[#111827] truncate">
-                      {meal.dishNames.length > 0
-                        ? meal.dishNames.join(', ')
-                        : <span className="italic text-[#9CA3AF]">Tidak terdeteksi</span>
-                      }
-                    </p>
-                    <p className="text-xs text-[#6B7280] mt-0.5">{fmtDate(meal.loggedAt)}</p>
-                    {desc && <p className="text-xs text-[#6B7280] mt-1 line-clamp-2">{desc}</p>}
+          {/* Body scroll */}
+          <div className="overflow-y-auto flex-1 p-4 space-y-3">
 
-                    {/* ── Macro summary row ── */}
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-orange-500">
-                        <FlameIcon size={11} />
-                        {meal.totalCalories} kkal
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
-                        <DumbbellIcon size={11} color="#22c55e" />
-                        <strong className="text-[#111827]">{Number(meal.totalProtein).toFixed(1)}g</strong>
-                        <span>protein</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
-                        <GrainIcon size={11} color="#3b82f6" />
-                        <strong className="text-[#111827]">{Number(meal.totalCarbs).toFixed(1)}g</strong>
-                        <span>karbo</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
-                        <DropletIcon size={11} color="#a855f7" />
-                        <strong className="text-[#111827]">{Number(meal.totalFat).toFixed(1)}g</strong>
-                        <span>lemak</span>
-                      </span>
+            {/* Loading skeleton — kini include placeholder foto */}
+            {(loading || paging) && (
+              <div className="space-y-3">
+                {[1,2,3].map(i => (
+                  <div key={i} className="border border-[#E5E7EB] rounded-xl p-3 flex gap-3 animate-pulse">
+                    <div className="w-16 h-16 rounded-lg bg-[#F3F4F6] shrink-0" />
+                    <div className="flex-1 space-y-2 pt-1">
+                      <div className="h-3.5 bg-[#F3F4F6] rounded w-3/4" />
+                      <div className="h-3 bg-[#F3F4F6] rounded w-1/3" />
+                      <div className="h-3 bg-[#F3F4F6] rounded w-full" />
+                      <div className="flex gap-3 mt-1">
+                        <div className="h-3 bg-[#F3F4F6] rounded w-16" />
+                        <div className="h-3 bg-[#F3F4F6] rounded w-16" />
+                        <div className="h-3 bg-[#F3F4F6] rounded w-16" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty — filter active */}
+            {!loading && !paging && meals.length === 0 && isFiltering && (
+              <div className="py-10 text-center">
+                <div className="flex justify-center mb-3">
+                  <CalendarIcon size={36} color="#D1D5DB" />
+                </div>
+                <p className="text-sm font-semibold text-[#111827] mb-1">Tidak ada riwayat makanan</p>
+                <p className="text-xs text-[#6B7280] mb-4">
+                  Tidak ditemukan catatan pada <strong className="text-[#111827]">{fmtDateStr(filterDate)}</strong>
+                </p>
+                <button
+                  onClick={handleResetFilter}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] text-[#166534] hover:bg-[#D4F5E4] transition"
+                >
+                  Lihat Semua Riwayat
+                </button>
+              </div>
+            )}
+
+            {/* Empty — no filter */}
+            {!loading && !paging && meals.length === 0 && !isFiltering && (
+              <div className="py-10 text-center text-[#6B7280] text-sm">
+                Belum ada riwayat analisa untuk user ini.
+              </div>
+            )}
+
+            {/* ── Meal list ── */}
+            {!loading && !paging && meals.map(meal => {
+              const menuItems  = getMenuItems(meal)
+              const desc       = getDescription(meal)
+              const isExpanded = expanded === meal.id
+              const dishLabel  = meal.dishNames.length > 0
+                ? meal.dishNames.join(', ')
+                : 'Tidak terdeteksi'
+
+              return (
+                <div key={meal.id} className="border border-[#E5E7EB] rounded-xl overflow-hidden bg-white">
+
+                  {/* ── Card row: foto + info ── */}
+                  <div className="flex items-start gap-3 p-3">
+
+                    {/* ── FOTO THUMBNAIL ── */}
+                    {meal.imageUrl ? (
+                      <button
+                        onClick={() => setLightbox({ url: meal.imageUrl!, name: dishLabel })}
+                        title="Klik untuk perbesar"
+                        className="shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-[#F3F4F6] group relative border border-[#E5E7EB]"
+                      >
+                        <img
+                          src={meal.imageUrl}
+                          alt={dishLabel}
+                          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
+                          loading="lazy"
+                          onError={e => {
+                            const t = e.target as HTMLImageElement
+                            t.style.display = 'none'
+                            ;(t.nextElementSibling as HTMLElement | null)?.classList.remove('hidden')
+                          }}
+                        />
+                        {/* Fallback broken image */}
+                        <div className="hidden absolute inset-0 flex flex-col items-center justify-center text-[#9CA3AF] gap-0.5">
+                          <span className="text-lg">🖼️</span>
+                          <span className="text-[9px]">No image</span>
+                        </div>
+                        {/* Hover overlay zoom hint */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center">
+                          <svg
+                            width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="white" strokeWidth="2.2" strokeLinecap="round"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity drop-shadow"
+                          >
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                            <line x1="11" y1="8" x2="11" y2="14"/>
+                            <line x1="8" y1="11" x2="14" y2="11"/>
+                          </svg>
+                        </div>
+                      </button>
+                    ) : (
+                      /* Placeholder jika tidak ada foto */
+                      <div className="shrink-0 w-16 h-16 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] flex flex-col items-center justify-center text-[#D1D5DB] gap-0.5">
+                        <span className="text-xl">🍽️</span>
+                        <span className="text-[9px] text-[#9CA3AF]">No foto</span>
+                      </div>
+                    )}
+
+                    {/* ── INFO ── */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-[#111827] truncate">
+                        {meal.dishNames.length > 0
+                          ? meal.dishNames.join(', ')
+                          : <span className="italic text-[#9CA3AF]">Tidak terdeteksi</span>
+                        }
+                      </p>
+                      <p className="text-xs text-[#6B7280] mt-0.5">{fmtDate(meal.loggedAt)}</p>
+
+                      {/* Deskripsi AI — preview truncated di card, full di expanded */}
+                      {desc && (
+                        <p className="text-xs text-[#6B7280] mt-1 line-clamp-2 italic leading-relaxed">
+                          &ldquo;{desc}&rdquo;
+                        </p>
+                      )}
+
+                      {/* Macro summary */}
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-orange-500">
+                          <FlameIcon size={11} />
+                          {meal.totalCalories} kkal
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
+                          <DumbbellIcon size={11} color="#22c55e" />
+                          <strong className="text-[#111827]">{Number(meal.totalProtein).toFixed(1)}g</strong>
+                          <span>protein</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
+                          <GrainIcon size={11} color="#3b82f6" />
+                          <strong className="text-[#111827]">{Number(meal.totalCarbs).toFixed(1)}g</strong>
+                          <span>karbo</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
+                          <DropletIcon size={11} color="#a855f7" />
+                          <strong className="text-[#111827]">{Number(meal.totalFat).toFixed(1)}g</strong>
+                          <span>lemak</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* ── Action buttons ── */}
+                    <div className="flex flex-col gap-1.5 items-end shrink-0">
+                      {(menuItems.length > 0 || desc) && (
+                        <button
+                          onClick={() => setExpanded(isExpanded ? null : meal.id)}
+                          className="text-xs px-2.5 py-1 rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition"
+                        >
+                          {isExpanded ? '▲ Tutup' : menuItems.length > 0 ? `▼ ${menuItems.length} menu` : '▼ Detail'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteMeal(meal.id)}
+                        disabled={deleting === meal.id}
+                        className="flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition disabled:opacity-50"
+                      >
+                        {deleting === meal.id
+                          ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin .7s linear infinite' }}><path d="M12 2 a10 10 0 0 1 10 10" /></svg>
+                          : <TrashIcon size={12} />
+                        }
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1.5 items-end shrink-0">
-                    {menuItems.length > 0 && (
-                      <button
-                        onClick={() => setExpanded(isExpanded ? null : meal.id)}
-                        className="text-xs px-2.5 py-1 rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition"
-                      >
-                        {isExpanded ? '▲ Tutup' : `▼ ${menuItems.length} menu`}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => deleteMeal(meal.id)}
-                      disabled={deleting === meal.id}
-                      className="flex items-center justify-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition disabled:opacity-50"
-                    >
-                      {deleting === meal.id
-                        ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin .7s linear infinite' }}><path d="M12 2 a10 10 0 0 1 10 10" /></svg>
-                        : <TrashIcon size={12} />
-                      }
-                    </button>
-                  </div>
-                </div>
+                  {/* ── EXPANDED: deskripsi AI lengkap + per-menu detail ── */}
+                  {isExpanded && (
+                    <div className="border-t border-[#E5E7EB] px-4 py-3 space-y-3 bg-[#F9FAFB]">
 
-                {/* ── Expanded: per-menu detail ── */}
-                {isExpanded && menuItems.length > 0 && (
-                  <div className="border-t border-[#E5E7EB] px-4 py-3 space-y-3 bg-[#F9FAFB]">
-                    <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">
-                      Detail Menu Terdeteksi
-                    </p>
-                    {menuItems.map((item, idx) => (
-                      <div key={idx} className="border border-[#E5E7EB] rounded-lg p-3 bg-white space-y-1">
-                        <p className="text-sm font-medium text-[#111827]">{item.name ?? `Menu ${idx + 1}`}</p>
-                        {item.description && <p className="text-xs text-[#6B7280]">{item.description}</p>}
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                          {item.calories !== undefined && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-500">
-                              <FlameIcon size={10} /> {item.calories} kkal
-                            </span>
-                          )}
-                          {item.protein !== undefined && (
-                            <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
-                              <DumbbellIcon size={10} color="#22c55e" /> {item.protein}g protein
-                            </span>
-                          )}
-                          {item.carbs !== undefined && (
-                            <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
-                              <GrainIcon size={10} color="#3b82f6" /> {item.carbs}g karbo
-                            </span>
-                          )}
-                          {item.fat !== undefined && (
-                            <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
-                              <DropletIcon size={10} color="#a855f7" /> {item.fat}g lemak
-                            </span>
-                          )}
-                          {item.fiber !== undefined && (
-                            <span className="text-xs text-[#6B7280]">Serat: {item.fiber}g</span>
-                          )}
+                      {/* Deskripsi AI — full text */}
+                      {desc && (
+                        <div className="bg-white border border-[#E5E7EB] rounded-lg p-3 space-y-1">
+                          <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest flex items-center gap-1">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="10"/>
+                              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                              <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            Deskripsi Analisa AI
+                          </p>
+                          <p className="text-xs text-[#374151] leading-relaxed">{desc}</p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                      )}
 
-        {/* Pagination footer */}
-        <div className="px-6 py-3 border-t border-[#E5E7EB] flex items-center justify-between gap-3">
-          <span className="text-xs text-[#6B7280] tabular-nums">
-            {paging ? (
-              <span className="inline-flex items-center gap-1.5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2ECC71" strokeWidth="2.5" strokeLinecap="round"
-                  style={{ animation: 'spin .7s linear infinite' }}>
-                  <path d="M12 2 a10 10 0 0 1 10 10" />
-                </svg>
-                Memuat…
-              </span>
-            ) : data ? `Hal. ${page} / ${totalPages}` : ''}
-          </span>
-
-          <div className="flex items-center gap-2">
-            {page > 1 && (
-              <button
-                disabled={paging}
-                onClick={() => load(1, true, filterDate)}
-                title="Halaman pertama"
-                className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="11 17 6 12 11 7"/>
-                  <polyline points="18 17 13 12 18 7"/>
-                </svg>
-                First
-              </button>
-            )}
-            <button
-              disabled={page <= 1 || paging}
-              onClick={() => load(page - 1, true, filterDate)}
-              className="px-3 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              ← Prev
-            </button>
-            <button
-              disabled={page >= totalPages || paging}
-              onClick={() => load(page + 1, true, filterDate)}
-              className="px-3 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Next →
-            </button>
-            <button
-              onClick={onClose}
-              className="px-3 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] transition"
-            >
-              Tutup
-            </button>
+                      {/* Per-menu breakdown */}
+                      {menuItems.length > 0 && (
+                        <>
+                          <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">
+                            Detail Menu Terdeteksi
+                          </p>
+                          {menuItems.map((item, idx) => (
+                            <div key={idx} className="border border-[#E5E7EB] rounded-lg p-3 bg-white space-y-1">
+                              <p className="text-sm font-medium text-[#111827]">{item.name ?? `Menu ${idx + 1}`}</p>
+                              {item.description && (
+                                <p className="text-xs text-[#6B7280] leading-relaxed">{item.description}</p>
+                              )}
+                              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                {item.calories !== undefined && (
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-500">
+                                    <FlameIcon size={10} /> {item.calories} kkal
+                                  </span>
+                                )}
+                                {item.protein !== undefined && (
+                                  <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
+                                    <DumbbellIcon size={10} color="#22c55e" /> {item.protein}g protein
+                                  </span>
+                                )}
+                                {item.carbs !== undefined && (
+                                  <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
+                                    <GrainIcon size={10} color="#3b82f6" /> {item.carbs}g karbo
+                                  </span>
+                                )}
+                                {item.fat !== undefined && (
+                                  <span className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
+                                    <DropletIcon size={10} color="#a855f7" /> {item.fat}g lemak
+                                  </span>
+                                )}
+                                {item.fiber !== undefined && (
+                                  <span className="text-xs text-[#6B7280]">Serat: {item.fiber}g</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
-        </div>
 
-        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+          {/* Pagination footer */}
+          <div className="px-6 py-3 border-t border-[#E5E7EB] flex items-center justify-between gap-3">
+            <span className="text-xs text-[#6B7280] tabular-nums">
+              {paging ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2ECC71" strokeWidth="2.5" strokeLinecap="round"
+                    style={{ animation: 'spin .7s linear infinite' }}>
+                    <path d="M12 2 a10 10 0 0 1 10 10" />
+                  </svg>
+                  Memuat…
+                </span>
+              ) : data ? `Hal. ${page} / ${totalPages}` : ''}
+            </span>
+
+            <div className="flex items-center gap-2">
+              {page > 1 && (
+                <button
+                  disabled={paging}
+                  onClick={() => load(1, true, filterDate)}
+                  title="Halaman pertama"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="11 17 6 12 11 7"/>
+                    <polyline points="18 17 13 12 18 7"/>
+                  </svg>
+                  First
+                </button>
+              )}
+              <button
+                disabled={page <= 1 || paging}
+                onClick={() => load(page - 1, true, filterDate)}
+                className="px-3 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ← Prev
+              </button>
+              <button
+                disabled={page >= totalPages || paging}
+                onClick={() => load(page + 1, true, filterDate)}
+                className="px-3 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:bg-[#F3F4F6] transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next →
+              </button>
+              <button
+                onClick={onClose}
+                className="px-3 py-1.5 text-xs rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] transition"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
