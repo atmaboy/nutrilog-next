@@ -32,10 +32,11 @@ export default function UserActions({ user, globalLimit }: { user: U; globalLimi
   async function deleteUser() {
     if (!confirm(`Hapus user "${user.username}"? Semua data akan ikut terhapus.`)) return
     setLoading('delete')
+    // FIX: gunakan POST (bukan DELETE) dan key "userId" (bukan "id")
     const r = await fetch(`/api/admin?action=delete_user`, {
-      method: 'DELETE',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
-      body: JSON.stringify({ id: user.id }),
+      body: JSON.stringify({ userId: user.id }),
     })
     const d = await r.json()
     if (r.ok) { toast.success('User dihapus'); router.refresh(); setShowEdit(false) }
@@ -119,10 +120,10 @@ export default function UserActions({ user, globalLimit }: { user: U; globalLimi
               </p>
             </div>
 
-            {/* Tombol Simpan Limit */}
+            {/* Tombol Simpan Limit — FIX: key userId bukan id */}
             <button
               onClick={() => call('update_user', {
-                id: user.id,
+                userId: user.id,
                 dailyLimit: limit === '' ? null : parseInt(limit),
                 isActive: user.isActive,
               })}
@@ -132,10 +133,10 @@ export default function UserActions({ user, globalLimit }: { user: U; globalLimi
               {loading === 'update_user' ? 'Menyimpan…' : 'Simpan Perubahan'}
             </button>
 
-            {/* Toggle Aktif/Nonaktif */}
+            {/* Toggle Aktif/Nonaktif — FIX: key userId bukan id */}
             <button
               onClick={() => call('update_user', {
-                id: user.id,
+                userId: user.id,
                 dailyLimit: user.dailyLimit,
                 isActive: !user.isActive,
               })}
