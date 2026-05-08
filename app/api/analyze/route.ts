@@ -13,6 +13,27 @@ export async function OPTIONS() {
   return new Response(null, { status: 204, headers: h })
 }
 
+// Retry with exponential backoff for 529 Overloaded errors
+async function callWithRetry(
+  fn: () => Promise<Anthropic.Message>,
+  maxRetries = 3,
+): Promise<Anthropic.Message> {
+  let lastError: any
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (e: any) {
+      lastError = e
+      const isOverloaded = e?.status === 529 || e?.error?.type === 'overloaded_error'
+      if (!isOverloaded || attempt === maxRetries) throw e
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = Math.pow(2, attempt) * 1000
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+  throw lastError
+}
+
 export async function POST(req: NextRequest) {
   // ── Maintenance check ─────────────────────────────────────────────────────
   const { enabled } = await checkMaintenance()
@@ -75,7 +96,7 @@ export async function POST(req: NextRequest) {
   // Anthropic API Key & Model
   const apiKey  = await getCfg('anthropic_api_key') || process.env.ANTHROPIC_API_KEY
   if (!apiKey) return err('API key Anthropic belum dikonfigurasi', 503)
-  const modelId = await getCfg('anthropic_model') || 'claude-sonnet-4-5'
+  const modelId = await getCfg('anthropic_model') || 'claude-sonnet-4-6'
 
   // Build prompt — strict food-only validation + correction context
   const basePrompt = `Kamu adalah analis nutrisi makanan. Tugasmu HANYA menganalisa gambar yang berisi makanan atau minuman.
@@ -113,27 +134,29 @@ LANGKAH KEDUA — jika ada makanan, kembalikan TEPAT format JSON berikut tanpa t
     ? `${basePrompt}\n\nKOREKSI DARI USER: "${correction.trim()}"\nGunakan informasi koreksi di atas sebagai prioritas utama untuk menentukan nama menu, bahan, dan porsi yang benar. Perbarui seluruh daftar dishes, total nutrisi, notes, healthScore, dan assessment berdasarkan koreksi tersebut.`
     : basePrompt
 
-  // Analyze with Claude
+  // Analyze with Claude — with exponential backoff retry for 529
   let analysis: any
   try {
     const client = new Anthropic({ apiKey })
-    const response = await client.messages.create({
-      model: modelId,
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mimeType as any, data: imageBase64 },
-          },
-          {
-            type: 'text',
-            text: correctionPrompt,
-          },
-        ],
-      }],
-    })
+    const response = await callWithRetry(() =>
+      client.messages.create({
+        model: modelId,
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mimeType as any, data: imageBase64 },
+            },
+            {
+              type: 'text',
+              text: correctionPrompt,
+            },
+          ],
+        }],
+      })
+    )
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
@@ -146,10 +169,9 @@ LANGKAH KEDUA — jika ada makanan, kembalikan TEPAT format JSON berikut tanpa t
     }
 
   } catch (e: any) {
-    // Anthropic API error — parse structured error if available
     const body = e?.error ?? e?.response?.error ?? null
 
-    // Overloaded — Claude sedang sibuk, minta retry
+    // Overloaded after all retries exhausted
     if (e?.status === 529 || body?.type === 'overloaded_error') {
       return err('Server AI sedang sibuk. Tunggu beberapa detik lalu coba lagi.', 503)
     }
@@ -169,7 +191,7 @@ LANGKAH KEDUA — jika ada makanan, kembalikan TEPAT format JSON berikut tanpa t
       return err('Koneksi ke AI timeout. Coba lagi.', 503)
     }
 
-    // Fallback — log full error server-side, tampilkan pesan ramah ke user
+    // Fallback
     console.error('[analyze] Anthropic error:', e)
     return err('Analisa gagal. Coba lagi beberapa saat.', 500)
   }
