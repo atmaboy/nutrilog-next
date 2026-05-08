@@ -38,6 +38,14 @@ type PageData = {
   totalPages: number
 }
 
+type AdminMealsResponse = {
+  meals?: Meal[]
+  total?: number
+  page?: number
+  totalPages?: number
+  error?: string
+}
+
 // ─── Inline SVG Icons ─────────────────────────────────────────────────────────
 
 function FlameIcon({ size = 12, className = '' }: { size?: number; className?: string }) {
@@ -120,7 +128,6 @@ export default function MealHistoryModal({
   const [filterDate, setFilterDate] = useState('')
   const [expanded, setExpanded]     = useState<string | null>(null)
   const [deleting, setDeleting]     = useState<string | null>(null)
-  // ── NEW: lightbox state ──
   const [lightbox, setLightbox]     = useState<{ url: string; name: string } | null>(null)
   const dateInputRef                = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -136,7 +143,7 @@ export default function MealHistoryModal({
         `/api/admin?action=user_meals&user_id=${userId}&page=${p}&per_page=15${dateQuery}`,
         { headers: { Authorization: `Bearer ${tok()}` } }
       )
-      const d = await res.json()
+      const d = await res.json() as AdminMealsResponse
       setData({
         meals:      d.meals      ?? [],
         total:      d.total      ?? 0,
@@ -152,7 +159,6 @@ export default function MealHistoryModal({
 
   useEffect(() => { load(1, false, '') }, [load])
 
-  // ── NEW: tutup lightbox dengan Escape ──
   useEffect(() => {
     if (!lightbox) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightbox(null) }
@@ -187,7 +193,7 @@ export default function MealHistoryModal({
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
       body: JSON.stringify({ id: mealId }),
     })
-    const d = await r.json()
+    const d = await r.json() as { error?: string }
     if (r.ok) {
       toast.success('Riwayat dihapus')
       load(page, false, filterDate)
@@ -235,7 +241,6 @@ export default function MealHistoryModal({
           className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4"
           onClick={() => setLightbox(null)}
         >
-          {/* Toolbar lightbox */}
           <div
             className="w-full max-w-2xl flex items-center justify-between mb-3"
             onClick={e => e.stopPropagation()}
@@ -244,7 +249,6 @@ export default function MealHistoryModal({
               {lightbox.name}
             </p>
             <div className="flex items-center gap-2">
-              {/* Tombol download */}
               <a
                 href={lightbox.url}
                 download
@@ -260,7 +264,6 @@ export default function MealHistoryModal({
                 </svg>
                 Download
               </a>
-              {/* Tombol tutup */}
               <button
                 onClick={() => setLightbox(null)}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs transition"
@@ -272,7 +275,6 @@ export default function MealHistoryModal({
               </button>
             </div>
           </div>
-          {/* Foto */}
           <div
             className="w-full max-w-2xl flex items-center justify-center"
             onClick={e => e.stopPropagation()}
@@ -371,7 +373,7 @@ export default function MealHistoryModal({
           {/* Body scroll */}
           <div className="overflow-y-auto flex-1 p-4 space-y-3">
 
-            {/* Loading skeleton — kini include placeholder foto */}
+            {/* Loading skeleton */}
             {(loading || paging) && (
               <div className="space-y-3">
                 {[1,2,3].map(i => (
@@ -448,7 +450,8 @@ export default function MealHistoryModal({
                           onError={e => {
                             const t = e.target as HTMLImageElement
                             t.style.display = 'none'
-                            ;(t.nextElementSibling as HTMLElement | null)?.classList.remove('hidden')
+                            const sibling = t.nextElementSibling as HTMLElement | null
+                            sibling?.classList.remove('hidden')
                           }}
                         />
                         {/* Fallback broken image */}
@@ -471,7 +474,6 @@ export default function MealHistoryModal({
                         </div>
                       </button>
                     ) : (
-                      /* Placeholder jika tidak ada foto */
                       <div className="shrink-0 w-16 h-16 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] flex flex-col items-center justify-center text-[#D1D5DB] gap-0.5">
                         <span className="text-xl">🍽️</span>
                         <span className="text-[9px] text-[#9CA3AF]">No foto</span>
@@ -488,7 +490,6 @@ export default function MealHistoryModal({
                       </p>
                       <p className="text-xs text-[#6B7280] mt-0.5">{fmtDate(meal.loggedAt)}</p>
 
-                      {/* Deskripsi AI — preview truncated di card, full di expanded */}
                       {desc && (
                         <p className="text-xs text-[#6B7280] mt-1 line-clamp-2 italic leading-relaxed">
                           &ldquo;{desc}&rdquo;
@@ -542,11 +543,10 @@ export default function MealHistoryModal({
                     </div>
                   </div>
 
-                  {/* ── EXPANDED: deskripsi AI lengkap + per-menu detail ── */}
+                  {/* ── EXPANDED ── */}
                   {isExpanded && (
                     <div className="border-t border-[#E5E7EB] px-4 py-3 space-y-3 bg-[#F9FAFB]">
 
-                      {/* Deskripsi AI — full text */}
                       {desc && (
                         <div className="bg-white border border-[#E5E7EB] rounded-lg p-3 space-y-1">
                           <p className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-widest flex items-center gap-1">
@@ -561,7 +561,6 @@ export default function MealHistoryModal({
                         </div>
                       )}
 
-                      {/* Per-menu breakdown */}
                       {menuItems.length > 0 && (
                         <>
                           <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">

@@ -78,13 +78,6 @@ const IconTrash = () => (
   </svg>
 )
 
-const IconRefresh = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="23 4 23 10 17 10"/>
-    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-  </svg>
-)
-
 const IconCheck = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="20 6 9 17 4 12"/>
@@ -126,8 +119,8 @@ export default function CatatPage() {
   const [editResult, setEditResult] = useState<AnalysisResult | null>(null)
   const [patchingManual, setPatchingManual] = useState(false)
 
-  function authHeaders() {
-    return { Authorization: `Bearer ${localStorage.getItem('nl_token') || ''}` }
+  function authHeaders(): Record<string, string> {
+    return { Authorization: `Bearer ${localStorage.getItem('nl_token') ?? ''}` }
   }
 
   function handle401() {
@@ -147,11 +140,12 @@ export default function CatatPage() {
           const canvas = document.createElement('canvas')
           canvas.width = img.width * scale
           canvas.height = img.height * scale
-          canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+          const ctx = canvas.getContext('2d')
+          if (ctx) ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
           const dataUrl = canvas.toDataURL('image/jpeg', 0.78)
           resolve({ base64: dataUrl.split(',')[1], mime: 'image/jpeg' })
         }
-        img.src = e.target!.result as string
+        img.src = e.target?.result as string
       }
       reader.readAsDataURL(file)
     })
@@ -166,7 +160,8 @@ export default function CatatPage() {
         const canvas = document.createElement('canvas')
         canvas.width = Math.round(img.width * scale)
         canvas.height = Math.round(img.height * scale)
-        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        const ctx = canvas.getContext('2d')
+        if (ctx) ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
         resolve(canvas.toDataURL('image/jpeg', 0.5))
       }
       img.src = dataUrl
@@ -177,7 +172,7 @@ export default function CatatPage() {
     reset()
     const reader = new FileReader()
     reader.onload = e => {
-      const preview = e.target!.result as string
+      const preview = e.target?.result as string
       setImgPreview(preview)
       setImageDataUrl(preview)
     }
@@ -227,7 +222,7 @@ export default function CatatPage() {
       })
       if (res.status === 401) { handle401(); return }
       if (!res.ok) { toast.error('Gagal menyimpan ke riwayat'); return }
-      const data = await res.json()
+      const data = await res.json() as { meal?: { id: string } }
       setSavedMealId(data.meal?.id ?? null)
       toast.success('Tersimpan otomatis ke riwayat ✓')
     } catch {
@@ -258,10 +253,11 @@ export default function CatatPage() {
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imgBase64, mimeType: imgMime, correction: koreksiText }),
       })
-      const data = await res.json()
+      const data = await res.json() as { analysis?: AnalysisResult; error?: string }
       if (res.status === 401) { handle401(); return }
-      if (res.status === 429) { toast.error(data.error || 'Batas analisa harian tercapai'); return }
-      if (!res.ok) { toast.error(data.error || 'Analisa ulang gagal'); return }
+      if (res.status === 429) { toast.error(data.error ?? 'Batas analisa harian tercapai'); return }
+      if (!res.ok) { toast.error(data.error ?? 'Analisa ulang gagal'); return }
+      if (!data.analysis) { toast.error('Analisa ulang gagal'); return }
 
       const analysis: AnalysisResult = data.analysis
       setResult(analysis)
@@ -305,14 +301,15 @@ export default function CatatPage() {
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: imgBase64, mimeType: imgMime }),
       })
-      const data = await res.json()
+      const data = await res.json() as { analysis?: AnalysisResult; error?: string }
       if (res.status === 401) { handle401(); return }
       if (res.status === 429) {
-        setWarn(data.error || 'Batas analisa harian tercapai')
+        setWarn(data.error ?? 'Batas analisa harian tercapai')
         setStep('preview')
         return
       }
-      if (!res.ok) { setError(data.error || 'Analisa gagal'); setStep('preview'); return }
+      if (!res.ok) { setError(data.error ?? 'Analisa gagal'); setStep('preview'); return }
+      if (!data.analysis) { setError('Analisa gagal'); setStep('preview'); return }
 
       const analysis: AnalysisResult = data.analysis
       setResult(analysis)
@@ -328,7 +325,7 @@ export default function CatatPage() {
 
   function openFullEdit() {
     if (!result) return
-    setEditResult(JSON.parse(JSON.stringify(result)))
+    setEditResult(JSON.parse(JSON.stringify(result)) as AnalysisResult)
     setShowFullEdit(true)
     setShowKoreksi(false)
   }
@@ -633,48 +630,45 @@ export default function CatatPage() {
                         background: ACCENT, color: '#081520',
                         borderRadius: 11, fontWeight: 700, fontSize: 14,
                         border: 'none', cursor: reanalyzing ? 'not-allowed' : 'pointer',
-                        opacity: reanalyzing ? 0.7 : 1, transition: 'opacity .2s',
-                        animation: 'slideUp .22s cubic-bezier(.22,1,.36,1) both',
+                        opacity: reanalyzing ? 0.7 : 1,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       }}>
-                        {reanalyzing ? '⏳ Menganalisa ulang...' : <><IconRefresh /> Analisa Ulang dengan AI</>}
+                        {reanalyzing ? '⏳ Menganalisis...' : <><IconSearch /> Analisis Ulang</>}
                       </button>
                     )}
                   </div>
 
                   <div style={{ background: 'var(--bg)', border: `1px solid ${BORDER}`, borderRadius: 13, padding: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                       <span style={{
                         background: ACCENT, color: '#081520', borderRadius: '50%',
                         width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 11, fontWeight: 800, flexShrink: 0,
                       }}>2</span>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Menu salah atau ada yang kurang</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Edit/tambah menu — nutrisi dihitung ulang otomatis</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Edit menu &amp; angka nutrisi manual</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ubah nama, porsi, kalori, protein, karbo, lemak langsung</div>
                       </div>
                     </div>
                     <button onClick={openFullEdit} style={{
-                      width: '100%', padding: '11px 0',
-                      background: 'rgba(61,255,149,.08)',
-                      border: '1px solid rgba(61,255,149,.25)',
-                      borderRadius: 10, color: ACCENT,
-                      fontWeight: 700, fontSize: 13, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      width: '100%', padding: '10px 0',
+                      background: 'var(--accent-dim)', border: '1px solid rgba(61,255,149,.25)',
+                      borderRadius: 10, color: ACCENT, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                     }}>
-                      <IconEdit /> Buka Editor Menu
+                      <IconEdit /> Buka Editor Manual
                     </button>
                   </div>
                 </div>
               )}
 
               <button onClick={reset} style={{
-                width: '100%', padding: '12px 0', background: 'transparent',
-                border: '1px solid var(--border)', borderRadius: 13,
-                color: 'var(--text-muted)', fontWeight: 600, fontSize: 14, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                width: '100%', padding: '13px 0',
+                background: 'transparent', border: `1.5px solid ${BORDER}`,
+                borderRadius: 14, color: 'var(--text-muted)',
+                fontWeight: 600, fontSize: 14, cursor: 'pointer',
               }}>
-                <IconCamera /> Foto Makanan Lain
+                📷 Foto Makanan Lain
               </button>
             </div>
           )}
