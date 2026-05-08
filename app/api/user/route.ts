@@ -4,7 +4,7 @@ import { users, meals, dailyUsage } from '@/drizzle/schema'
 import { verifyToken, extractToken, hashPassword } from '@/lib/auth'
 import { getGlobalLimit } from '@/lib/admin'
 import { ok, err, setCors, todayISO } from '@/lib/utils'
-import { eq, and, desc, count, sum } from 'drizzle-orm'
+import { eq, and, count, sum } from 'drizzle-orm'
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
@@ -97,7 +97,6 @@ export async function POST(req: NextRequest) {
     const trimmedEmail = email.trim().toLowerCase()
     if (!isValidEmail(trimmedEmail)) return err('Format email tidak valid')
 
-    // Cek duplikat email, exclude user sendiri
     const [existing] = await db.select({ id: users.id })
       .from(users).where(eq(users.email, trimmedEmail)).limit(1)
     if (existing && existing.id !== user.userId) return err('Email sudah digunakan', 409)

@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 
 function GizkuLogo() {
   return (
@@ -17,7 +16,6 @@ export default function AdminLogin() {
   const [pwd, setPwd] = useState('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
-  const router = useRouter()
 
   async function login(e: React.FormEvent) {
     e.preventDefault()

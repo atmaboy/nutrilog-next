@@ -6,6 +6,8 @@ import { getGlobalLimit } from '@/lib/admin'
 import { ok, err, setCors, todayISO } from '@/lib/utils'
 import { eq, and, desc, count, gte, lte } from 'drizzle-orm'
 
+type MealDish = { name: string }
+
 export async function OPTIONS() {
   const h = new Headers(); setCors(h)
   return new Response(null, { status: 204, headers: h })
@@ -27,14 +29,12 @@ export async function GET(req: NextRequest) {
 
   const action = req.nextUrl.searchParams.get('action') || 'list'
 
-  // LIST meals with pagination + optional date filter
   if (action === 'list') {
     const page    = parseInt(req.nextUrl.searchParams.get('page') || '1')
     const perPage = parseInt(req.nextUrl.searchParams.get('per_page') || '10')
     const offset  = (page - 1) * perPage
-    const dateParam = req.nextUrl.searchParams.get('date') // format: YYYY-MM-DD
+    const dateParam = req.nextUrl.searchParams.get('date')
 
-    // Build where conditions
     const conditions = [eq(meals.userId, user.userId)]
     if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
       const dayStart = new Date(`${dateParam}T00:00:00.000Z`)
@@ -56,7 +56,6 @@ export async function GET(req: NextRequest) {
     return ok({ meals: list, total: c, page, perPage, totalPages: Math.ceil(c / perPage) })
   }
 
-  // TODAY summary
   if (action === 'today') {
     const today = todayISO()
     const todayMeals = await db.select().from(meals)
@@ -94,7 +93,6 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // DELETE single meal
   if (action === 'delete') {
     const id = req.nextUrl.searchParams.get('id')
     if (!id) return err('Meal ID diperlukan')
@@ -131,7 +129,7 @@ export async function POST(req: NextRequest) {
 
   const [meal] = await db.insert(meals).values({
     userId:        user.userId,
-    dishNames:     analysis.dishes?.map((d: any) => d.name) ?? [],
+    dishNames:     analysis.dishes?.map((d: MealDish) => d.name) ?? [],
     totalCalories: Math.round(analysis.total?.calories ?? 0),
     totalProtein:  String(analysis.total?.protein ?? 0),
     totalCarbs:    String(analysis.total?.carbs ?? 0),
@@ -143,7 +141,6 @@ export async function POST(req: NextRequest) {
   return ok({ meal })
 }
 
-// PATCH — update existing meal entry
 export async function PATCH(req: NextRequest) {
   const user = await authUser(req)
   if (!user) return err('Token tidak valid', 401)
@@ -160,7 +157,7 @@ export async function PATCH(req: NextRequest) {
   if (!existing) return err('Data tidak ditemukan', 404)
 
   const [updated] = await db.update(meals).set({
-    dishNames:     analysis.dishes?.map((d: any) => d.name) ?? [],
+    dishNames:     analysis.dishes?.map((d: MealDish) => d.name) ?? [],
     totalCalories: Math.round(analysis.total?.calories ?? 0),
     totalProtein:  String(analysis.total?.protein ?? 0),
     totalCarbs:    String(analysis.total?.carbs ?? 0),

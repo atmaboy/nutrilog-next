@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { reports } from '@/drizzle/schema'
 import { verifyToken, extractToken } from '@/lib/auth'
 import { ok, err, setCors } from '@/lib/utils'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 
 export async function OPTIONS() {
   const h = new Headers(); setCors(h)

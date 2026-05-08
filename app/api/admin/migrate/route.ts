@@ -1,4 +1,4 @@
-// app/api/admin/migrate/route.ts  — v2 (rewrite berdasarkan struktur kv_store aktual)
+// app/api/admin/migrate/route.ts
 import { NextRequest } from 'next/server'
 import { createHash } from 'crypto'
 import { db } from '@/lib/db'
@@ -9,8 +9,6 @@ import { verifyToken, extractToken } from '@/lib/auth'
 import { setCors } from '@/lib/utils'
 import { eq } from 'drizzle-orm'
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
 function jsonResp(data: unknown, status = 200) {
   const h = new Headers()
   setCors(h)
@@ -18,7 +16,6 @@ function jsonResp(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: h })
 }
 
-/** Derive a stable UUIDv4-shaped string from a seed so re-runs are idempotent */
 function stableUuid(seed: string) {
   const hex = createHash('sha256').update(seed).digest('hex')
   const b = (parseInt(hex.slice(16, 18), 16) & 0x3f) | 0x80
@@ -49,8 +46,6 @@ function parseMaybeJson(v: unknown): unknown {
   try { return JSON.parse(s) } catch { return v }
 }
 
-// ─── Supabase REST fetch ─────────────────────────────────────────────────────
-
 async function fetchKvStore() {
   const url = process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -72,11 +67,9 @@ async function fetchKvStore() {
     const txt = await res.text()
     throw new Error(`Gagal membaca kv_store: ${res.status} ${txt}`)
   }
-  const data = await res.json()
+  const data = await res.json() as unknown
   return Array.isArray(data) ? data as { key: string; value: unknown; updated_at: string | null }[] : []
 }
-
-// ─── auth ────────────────────────────────────────────────────────────────────
 
 async function authAdmin(req: NextRequest) {
   const bearer = extractToken(req.headers.get('Authorization'))
@@ -89,15 +82,11 @@ async function authAdmin(req: NextRequest) {
   } catch { return null }
 }
 
-// ─── CORS ────────────────────────────────────────────────────────────────────
-
 export async function OPTIONS() {
   const h = new Headers()
   setCors(h)
   return new Response(null, { status: 204, headers: h })
 }
-
-// ─── POST /api/admin/migrate ─────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
@@ -160,7 +149,7 @@ export async function POST(req: NextRequest) {
       const value = parseMaybeJson(row.value)
 
       if (key === 'users/index') {
-        const arr = Array.isArray(value) ? value : []
+        const arr = Array.isArray(value) ? value as LegacyUser[] : []
         for (const u of arr) {
           if (u?.id && u?.username) {
             legacyUsersById.set(u.id, {
@@ -219,10 +208,10 @@ export async function POST(req: NextRequest) {
         const parts = key.split('/')
         if (parts.length === 3) {
           const [, uid, date] = parts
-          const count = typeof value === 'number'
+          const usageCount = typeof value === 'number'
             ? value
             : parseInt(String(parseMaybeJson(row.value) ?? '0'), 10)
-          usageMap.set(`${uid}/${date}`, Number.isNaN(count) ? 0 : count)
+          usageMap.set(`${uid}/${date}`, Number.isNaN(usageCount) ? 0 : usageCount)
         }
         continue
       }
@@ -259,7 +248,6 @@ export async function POST(req: NextRequest) {
     log.push(`Usage entries: ${usageMap.size}`)
     log.push(`Reports: ${legacyReports.length}`)
 
-    // ── 2. Migrate Users ──────────────────────────────────────────────────────
     const newUuidByLegacyId = new Map<string, string>()
     let migratedUsers = 0
     let skippedUsers  = 0
@@ -296,7 +284,6 @@ export async function POST(req: NextRequest) {
     }
     log.push(`Users dimigrasikan: ${migratedUsers}, dilewati: ${skippedUsers}`)
 
-    // ── 3. Migrate Meals ──────────────────────────────────────────────────────
     let migratedMeals = 0
     let skippedMeals  = 0
 
@@ -320,6 +307,7 @@ export async function POST(req: NextRequest) {
         let rawAnalysis: unknown = null
         if (detail) {
           const { imageData: _drop, ...rest } = detail
+          void _drop
           rawAnalysis = Object.keys(rest).length > 0 ? rest : null
         }
 
@@ -341,10 +329,9 @@ export async function POST(req: NextRequest) {
     }
     log.push(`Meals dimigrasikan: ${migratedMeals}, dilewati: ${skippedMeals}`)
 
-    // ── 4. Migrate Daily Usage ────────────────────────────────────────────────
     let migratedUsage = 0
 
-    for (const [key, count] of Array.from(usageMap.entries())) {
+    for (const [key, usageCount] of Array.from(usageMap.entries())) {
       const [legacyUserId, date] = key.split('/')
       const newUserId = newUuidByLegacyId.get(legacyUserId)
       if (!newUserId || !date) continue
@@ -352,16 +339,15 @@ export async function POST(req: NextRequest) {
       await db.insert(dailyUsage).values({
         userId: newUserId,
         date,
-        count,
+        count: usageCount,
       }).onConflictDoUpdate({
         target: [dailyUsage.userId, dailyUsage.date],
-        set: { count },
+        set: { count: usageCount },
       })
       migratedUsage++
     }
     log.push(`Daily usage dimigrasikan: ${migratedUsage}`)
 
-    // ── 5. Migrate Reports ────────────────────────────────────────────────────
     let migratedReports = 0
 
     for (const rep of legacyReports) {
@@ -383,10 +369,9 @@ export async function POST(req: NextRequest) {
     }
     log.push(`Reports dimigrasikan: ${migratedReports}`)
 
-    // ── 6. Migrate Config ─────────────────────────────────────────────────────
     let migratedConfig = 0
-
     const cfg = legacyConfig
+
     if (cfg.dailyLimit !== undefined) {
       await db.insert(adminConfig).values({
         key: 'default_daily_limit', value: String(cfg.dailyLimit), updatedAt: new Date(),

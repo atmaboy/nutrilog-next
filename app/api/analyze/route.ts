@@ -13,20 +13,27 @@ export async function OPTIONS() {
   return new Response(null, { status: 204, headers: h })
 }
 
+type AnthropicError = {
+  status?: number
+  code?: string
+  name?: string
+  error?: { type?: string }
+  response?: { error?: unknown }
+}
+
 // Retry with exponential backoff for 529 Overloaded errors
 async function callWithRetry(
   fn: () => Promise<Anthropic.Message>,
   maxRetries = 3,
 ): Promise<Anthropic.Message> {
-  let lastError: any
+  let lastError: AnthropicError = {}
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn()
-    } catch (e: any) {
-      lastError = e
-      const isOverloaded = e?.status === 529 || e?.error?.type === 'overloaded_error'
+    } catch (e) {
+      lastError = e as AnthropicError
+      const isOverloaded = lastError?.status === 529 || lastError?.error?.type === 'overloaded_error'
       if (!isOverloaded || attempt === maxRetries) throw e
-      // Exponential backoff: 1s, 2s, 4s
       const delay = Math.pow(2, attempt) * 1000
       await new Promise(resolve => setTimeout(resolve, delay))
     }
@@ -35,11 +42,9 @@ async function callWithRetry(
 }
 
 export async function POST(req: NextRequest) {
-  // ── Maintenance check ─────────────────────────────────────────────────────
   const { enabled } = await checkMaintenance()
   if (enabled) return maintenanceResponse()
 
-  // ── Auth ──────────────────────────────────────────────────────────────────
   const token = extractToken(req.headers.get('Authorization'))
   if (!token) return err('Token diperlukan', 401)
   let payload: { userId: string; username: string }
@@ -51,7 +56,6 @@ export async function POST(req: NextRequest) {
     return err('Token tidak valid', 401)
   }
 
-  // Get user daily limit
   const { users } = await import('@/drizzle/schema')
   const { eq: eqOp } = await import('drizzle-orm')
   const [user] = await db.select({ dailyLimit: users.dailyLimit }).from(users)
@@ -61,7 +65,6 @@ export async function POST(req: NextRequest) {
   const userLimit   = user?.dailyLimit ?? globalLimit
   const today       = todayISO()
 
-  // Check daily usage
   const [usage] = await db.select().from(dailyUsage)
     .where(and(eq(dailyUsage.userId, payload.userId), eq(dailyUsage.date, today)))
     .limit(1)
@@ -70,7 +73,6 @@ export async function POST(req: NextRequest) {
     return err(`Batas analisa harian (${userLimit}x) sudah tercapai`, 429)
   }
 
-  // Parse request
   const contentType = req.headers.get('content-type') || ''
   let imageBase64 = '', mimeType = 'image/jpeg', correction = ''
 
@@ -93,12 +95,10 @@ export async function POST(req: NextRequest) {
 
   if (!imageBase64) return err('Gambar diperlukan')
 
-  // Anthropic API Key & Model
   const apiKey  = await getCfg('anthropic_api_key') || process.env.ANTHROPIC_API_KEY
   if (!apiKey) return err('API key Anthropic belum dikonfigurasi', 503)
   const modelId = await getCfg('anthropic_model') || 'claude-sonnet-4-6'
 
-  // Build prompt — strict food-only validation + correction context
   const basePrompt = `Kamu adalah analis nutrisi makanan. Tugasmu HANYA menganalisa gambar yang berisi makanan atau minuman.
 
 LANGKAH PERTAMA — validasi gambar:
@@ -134,8 +134,17 @@ LANGKAH KEDUA — jika ada makanan, kembalikan TEPAT format JSON berikut tanpa t
     ? `${basePrompt}\n\nKOREKSI DARI USER: "${correction.trim()}"\nGunakan informasi koreksi di atas sebagai prioritas utama untuk menentukan nama menu, bahan, dan porsi yang benar. Perbarui seluruh daftar dishes, total nutrisi, notes, healthScore, dan assessment berdasarkan koreksi tersebut.`
     : basePrompt
 
-  // Analyze with Claude — with exponential backoff retry for 529
-  let analysis: any
+  type AnalysisResult = {
+    error?: string
+    message?: string
+    dishes?: { name: string }[]
+    total?: { calories: number; protein: number; carbs: number; fat: number }
+    notes?: string
+    healthScore?: number
+    assessment?: string
+  }
+
+  let analysis: AnalysisResult
   try {
     const client = new Anthropic({ apiKey })
     const response = await callWithRetry(() =>
@@ -147,7 +156,7 @@ LANGKAH KEDUA — jika ada makanan, kembalikan TEPAT format JSON berikut tanpa t
           content: [
             {
               type: 'image',
-              source: { type: 'base64', media_type: mimeType as any, data: imageBase64 },
+              source: { type: 'base64', media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: imageBase64 },
             },
             {
               type: 'text',
@@ -161,42 +170,33 @@ LANGKAH KEDUA — jika ada makanan, kembalikan TEPAT format JSON berikut tanpa t
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return err('Gagal memparse respons AI')
-    analysis = JSON.parse(jsonMatch[0])
+    analysis = JSON.parse(jsonMatch[0]) as AnalysisResult
 
-    // Handle non-food rejection from AI
     if (analysis.error === 'non_food') {
       return err(analysis.message || 'Gambar tidak mengandung makanan. Silakan foto makananmu.', 422)
     }
 
-  } catch (e: any) {
-    const body = e?.error ?? e?.response?.error ?? null
+  } catch (e) {
+    const error = e as AnthropicError
+    const body = error?.error ?? null
 
-    // Overloaded after all retries exhausted
-    if (e?.status === 529 || body?.type === 'overloaded_error') {
+    if (error?.status === 529 || (body as { type?: string })?.type === 'overloaded_error') {
       return err('Server AI sedang sibuk. Tunggu beberapa detik lalu coba lagi.', 503)
     }
-
-    // Rate limited by Anthropic
-    if (e?.status === 429) {
+    if (error?.status === 429) {
       return err('Batas permintaan AI tercapai. Coba lagi dalam beberapa menit.', 429)
     }
-
-    // Invalid API key
-    if (e?.status === 401) {
+    if (error?.status === 401) {
       return err('API key Anthropic tidak valid. Hubungi admin.', 503)
     }
-
-    // Timeout
-    if (e?.code === 'ETIMEDOUT' || e?.code === 'ECONNRESET' || e?.name === 'TimeoutError') {
+    if (error?.code === 'ETIMEDOUT' || error?.code === 'ECONNRESET' || error?.name === 'TimeoutError') {
       return err('Koneksi ke AI timeout. Coba lagi.', 503)
     }
 
-    // Fallback
     console.error('[analyze] Anthropic error:', e)
     return err('Analisa gagal. Coba lagi beberapa saat.', 500)
   }
 
-  // Increment daily usage — hanya jika analisa berhasil
   await db.insert(dailyUsage)
     .values({ userId: payload.userId, date: today, count: 1 })
     .onConflictDoUpdate({
