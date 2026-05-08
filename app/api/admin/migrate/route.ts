@@ -56,7 +56,6 @@ async function fetchKvStore() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('SUPABASE_URL atau SUPABASE_SERVICE_ROLE_KEY belum di-set')
 
-  // fetch semua rows (kv_store tidak ada namespace, hanya key + value + updated_at)
   const res = await fetch(
     `${url}/rest/v1/kv_store?select=key,value,updated_at&limit=10000`,
     {
@@ -108,20 +107,8 @@ export async function POST(req: NextRequest) {
     const rows = await fetchKvStore()
     const log: string[] = []
 
-    // ── 1. Kelompokkan rows berdasarkan prefix key ──────────────────────────
-    //
-    // Pola key yang ada di kv_store:
-    //   users/index                          → array ringkasan semua user
-    //   users/{legacyId}                     → object detail user
-    //   meals/index/{legacyUserId}           → array ringkasan meal milik user
-    //   meals/data/{legacyUserId}/{mealId}   → object detail meal (ada imageData base64)
-    //   usage/{legacyUserId}/{date}          → angka (count harian)
-    //   reports/index                        → array ringkasan report
-    //   reports/{reportId}                   → object detail report
-    //   config/global                        → object konfigurasi global
-
     type LegacyUser = {
-      id: string           // "u_xxx"
+      id: string
       username: string
       passwordHash?: string
       dailyLimit?: number | null
@@ -130,7 +117,7 @@ export async function POST(req: NextRequest) {
     }
 
     type MealIndex = {
-      id: string           // "m_xxx"
+      id: string
       timestamp: string
       dishNames: string[]
       totalCalories: number
@@ -143,7 +130,7 @@ export async function POST(req: NextRequest) {
     type MealData = {
       id: string
       timestamp: string
-      imageData?: string     // base64 — TIDAK disimpan, hanya summary dari index
+      imageData?: string
       analysis?: unknown
       dishNames?: string[]
       totalCalories?: number
@@ -161,10 +148,10 @@ export async function POST(req: NextRequest) {
       status?: string
     }
 
-    const legacyUsersById = new Map<string, LegacyUser>()    // legacyId → user
-    const mealIndexByUserId = new Map<string, MealIndex[]>() // legacyId → []
-    const mealDataById = new Map<string, MealData>()         // mealId   → detail
-    const usageMap = new Map<string, number>()               // "legacyId/date" → count
+    const legacyUsersById = new Map<string, LegacyUser>()
+    const mealIndexByUserId = new Map<string, MealIndex[]>()
+    const mealDataById = new Map<string, MealData>()
+    const usageMap = new Map<string, number>()
     const legacyReports: ReportData[] = []
     let   legacyConfig: Record<string, unknown> = {}
 
@@ -172,7 +159,6 @@ export async function POST(req: NextRequest) {
       const key   = row.key ?? ''
       const value = parseMaybeJson(row.value)
 
-      // ── users/index ──
       if (key === 'users/index') {
         const arr = Array.isArray(value) ? value : []
         for (const u of arr) {
@@ -187,31 +173,28 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      // ── users/{id} ──
       if (key.startsWith('users/u_')) {
-        const obj = value as any
+        const obj = value as Record<string, unknown>
         if (obj?.id && obj?.username) {
-          const prev = legacyUsersById.get(obj.id) ?? {}
-          legacyUsersById.set(obj.id, {
+          const prev = legacyUsersById.get(obj.id as string) ?? {} as LegacyUser
+          legacyUsersById.set(obj.id as string, {
             ...prev,
-            id: obj.id,
+            id: obj.id as string,
             username: String(obj.username).toLowerCase().trim(),
-            passwordHash: obj.passwordHash ?? (prev as any).passwordHash,
-            dailyLimit: obj.dailyLimit ?? (prev as any).dailyLimit ?? null,
-            isActive: obj.isActive ?? (prev as any).isActive ?? true,
-            createdAt: obj.createdAt ?? (prev as any).createdAt,
+            passwordHash: (obj.passwordHash as string) ?? prev.passwordHash,
+            dailyLimit: (obj.dailyLimit as number) ?? prev.dailyLimit ?? null,
+            isActive: (obj.isActive as boolean) ?? prev.isActive ?? true,
+            createdAt: (obj.createdAt as string) ?? prev.createdAt,
           })
         }
         continue
       }
 
-      // ── meals/index/{legacyUserId} ──
       if (key.startsWith('meals/index/')) {
         const legacyUserId = key.replace('meals/index/', '')
         const arr = Array.isArray(value) ? value as MealIndex[] : []
         const existing = mealIndexByUserId.get(legacyUserId) ?? []
-        // merge, avoid duplicates by id
-        const ids = new Set(existing.map(m => m.id))
+        const ids = new Set(existing.map((m: MealIndex) => m.id))
         for (const m of arr) {
           if (m?.id && !ids.has(m.id)) {
             existing.push(m)
@@ -222,9 +205,8 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      // ── meals/data/{legacyUserId}/{mealId} ──
       if (key.startsWith('meals/data/')) {
-        const parts  = key.split('/')           // ["meals","data","u_xxx","m_xxx"]
+        const parts  = key.split('/')
         const mealId = parts[3]
         if (mealId) {
           const obj = value as MealData
@@ -233,9 +215,8 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      // ── usage/{legacyUserId}/{date} ──
       if (key.startsWith('usage/')) {
-        const parts = key.split('/')   // ["usage","u_xxx","2026-04-06"]
+        const parts = key.split('/')
         if (parts.length === 3) {
           const [, uid, date] = parts
           const count = typeof value === 'number'
@@ -246,29 +227,25 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      // ── reports/index ──
       if (key === 'reports/index') {
-        // hanya preview; detail ada di reports/{id}
         continue
       }
 
-      // ── reports/{reportId} ──
       if (key.startsWith('reports/r_')) {
-        const obj = value as any
+        const obj = value as Record<string, unknown>
         if (obj?.message || obj?.preview) {
           legacyReports.push({
-            id:       obj.id ?? key.replace('reports/', ''),
-            userId:   obj.userId ?? '',
-            username: obj.username ?? '',
-            message:  obj.message ?? obj.preview ?? '',
-            timestamp: obj.timestamp ?? obj.createdAt,
-            status:   obj.status ?? 'open',
+            id:       (obj.id as string) ?? key.replace('reports/', ''),
+            userId:   (obj.userId as string) ?? '',
+            username: (obj.username as string) ?? '',
+            message:  (obj.message as string) ?? (obj.preview as string) ?? '',
+            timestamp: (obj.timestamp as string) ?? (obj.createdAt as string),
+            status:   (obj.status as string) ?? 'open',
           })
         }
         continue
       }
 
-      // ── config/global ──
       if (key === 'config/global') {
         legacyConfig = (value as Record<string, unknown>) ?? {}
         continue
@@ -277,18 +254,17 @@ export async function POST(req: NextRequest) {
 
     log.push(`Rows dibaca dari kv_store: ${rows.length}`)
     log.push(`Legacy users ditemukan: ${legacyUsersById.size}`)
-    log.push(`Meal index entries: ${[...mealIndexByUserId.values()].flat().length}`)
+    log.push(`Meal index entries: ${Array.from(mealIndexByUserId.values()).flat().length}`)
     log.push(`Meal data entries: ${mealDataById.size}`)
     log.push(`Usage entries: ${usageMap.size}`)
     log.push(`Reports: ${legacyReports.length}`)
 
     // ── 2. Migrate Users ──────────────────────────────────────────────────────
-    // Map legacyId ("u_xxx") → new PostgreSQL UUID
     const newUuidByLegacyId = new Map<string, string>()
     let migratedUsers = 0
     let skippedUsers  = 0
 
-    for (const user of legacyUsersById.values()) {
+    for (const user of Array.from(legacyUsersById.values())) {
       if (!user.username) { skippedUsers++; continue }
 
       const newUuid = stableUuid(`user:${user.username}`)
@@ -321,12 +297,10 @@ export async function POST(req: NextRequest) {
     log.push(`Users dimigrasikan: ${migratedUsers}, dilewati: ${skippedUsers}`)
 
     // ── 3. Migrate Meals ──────────────────────────────────────────────────────
-    // Sumber utama: meals/index/{legacyUserId}  (sudah ada dishNames + totals)
-    // Sumber enrichment: meals/data/{legacyUserId}/{mealId}  (ada rawAnalysis)
     let migratedMeals = 0
     let skippedMeals  = 0
 
-    for (const [legacyUserId, mealList] of mealIndexByUserId.entries()) {
+    for (const [legacyUserId, mealList] of Array.from(mealIndexByUserId.entries())) {
       const newUserId = newUuidByLegacyId.get(legacyUserId)
       if (!newUserId) {
         log.push(`⚠ legacyUserId ${legacyUserId} tidak ditemukan di users → ${mealList.length} meal dilewati`)
@@ -339,15 +313,13 @@ export async function POST(req: NextRequest) {
         const loggedAt   = toDate(mealSummary.timestamp)
         const mealUuid   = stableUuid(`meal:${legacyUserId}:${mealSummary.id}`)
 
-        // dishNames dari index (sudah bersih, tanpa imageData)
         const dishNames = Array.isArray(mealSummary.dishNames)
-          ? mealSummary.dishNames.map(d => String(d).trim()).filter(Boolean)
+          ? mealSummary.dishNames.map((d: string) => String(d).trim()).filter(Boolean)
           : []
 
-        // rawAnalysis dari detail, tapi HAPUS imageData (bisa puluhan KB per row)
         let rawAnalysis: unknown = null
         if (detail) {
-          const { imageData: _drop, ...rest } = detail as any
+          const { imageData: _drop, ...rest } = detail
           rawAnalysis = Object.keys(rest).length > 0 ? rest : null
         }
 
@@ -359,7 +331,7 @@ export async function POST(req: NextRequest) {
           totalProtein:  String(toNum(mealSummary.totalProtein)),
           totalCarbs:    String(toNum(mealSummary.totalCarbs)),
           totalFat:      String(toNum(mealSummary.totalFat)),
-          imageUrl:      null,        // base64 tidak disimpan di kolom ini
+          imageUrl:      null,
           rawAnalysis,
           loggedAt,
         }).onConflictDoNothing({ target: meals.id })
@@ -372,7 +344,7 @@ export async function POST(req: NextRequest) {
     // ── 4. Migrate Daily Usage ────────────────────────────────────────────────
     let migratedUsage = 0
 
-    for (const [key, count] of usageMap.entries()) {
+    for (const [key, count] of Array.from(usageMap.entries())) {
       const [legacyUserId, date] = key.split('/')
       const newUserId = newUuidByLegacyId.get(legacyUserId)
       if (!newUserId || !date) continue
@@ -414,7 +386,7 @@ export async function POST(req: NextRequest) {
     // ── 6. Migrate Config ─────────────────────────────────────────────────────
     let migratedConfig = 0
 
-    const cfg = legacyConfig as any
+    const cfg = legacyConfig
     if (cfg.dailyLimit !== undefined) {
       await db.insert(adminConfig).values({
         key: 'default_daily_limit', value: String(cfg.dailyLimit), updatedAt: new Date(),
@@ -434,18 +406,18 @@ export async function POST(req: NextRequest) {
       migratedConfig++
     }
     if (cfg.maintenance && typeof cfg.maintenance === 'object') {
-      const m = cfg.maintenance as any
+      const m = cfg.maintenance as Record<string, unknown>
       await db.insert(maintenanceConfig).values({
-        enabled:     m.enabled ?? false,
-        title:       m.title ?? 'NutriLog sedang dalam perbaikan',
-        description: m.description ?? 'Kami sedang melakukan peningkatan sistem.',
+        enabled:     (m.enabled as boolean) ?? false,
+        title:       (m.title as string) ?? 'NutriLog sedang dalam perbaikan',
+        description: (m.description as string) ?? 'Kami sedang melakukan peningkatan sistem.',
         updatedAt:   toDate(m.updatedAt),
       }).onConflictDoUpdate({
         target: maintenanceConfig.id,
         set: {
-          enabled:     m.enabled ?? false,
-          title:       m.title,
-          description: m.description,
+          enabled:     (m.enabled as boolean) ?? false,
+          title:       m.title as string,
+          description: m.description as string,
           updatedAt:   toDate(m.updatedAt),
         },
       })
