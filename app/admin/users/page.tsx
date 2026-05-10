@@ -6,15 +6,34 @@ import { count, desc, eq, sql } from 'drizzle-orm'
 import UserActions from '@/components/admin/UserActions'
 export const dynamic = 'force-dynamic'
 
+function fmtDate(dt: Date | string | null | undefined) {
+  if (!dt) return null
+  return new Date(dt).toLocaleString('id-ID', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
 export default async function UsersPage() {
   const today = todayISO()
   const globalLimit = await getGlobalLimit()
-  const allUsers = await db.select().from(users).orderBy(desc(users.createdAt))
+  const allUsers = await db.select({
+    id: users.id,
+    username: users.username,
+    email: users.email,
+    isActive: users.isActive,
+    dailyLimit: users.dailyLimit,
+    createdAt: users.createdAt,
+    lastLoginAt: users.lastLoginAt,
+    passwordChangedAt: users.passwordChangedAt,
+    passwordChangedBy: users.passwordChangedBy,
+    mustChangePassword: users.mustChangePassword,
+    adminResetBy: users.adminResetBy,
+  }).from(users).orderBy(desc(users.createdAt))
+
   const usersWithStats = await Promise.all(allUsers.map(async u => {
     const [[mr], [td]] = await Promise.all([
-      // Total meal: count dari tabel meals (source of truth)
       db.select({ cnt: count() }).from(meals).where(eq(meals.userId, u.id)),
-      // Hari ini: ambil nilai count dari dailyUsage, bukan row count
       db.select({ cnt: sql<number>`coalesce(sum(${dailyUsage.count}), 0)` })
         .from(dailyUsage)
         .where(sql`${dailyUsage.userId} = ${u.id} AND ${dailyUsage.date} = ${today}`),
@@ -40,13 +59,24 @@ export default async function UsersPage() {
               <th className="text-left px-4 py-3">Hari Ini</th>
               <th className="text-left px-4 py-3">Bergabung</th>
               <th className="text-left px-4 py-3">Last Login</th>
+              <th className="text-left px-4 py-3">Password</th>
               <th className="text-left px-4 py-3">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {usersWithStats.map((u, i) => (
               <tr key={u.id} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'}>
-                <td className="px-4 py-3 font-medium text-[#111827]">{u.username}</td>
+                <td className="px-4 py-3 font-medium text-[#111827]">
+                  <div className="flex items-center gap-1.5">
+                    {u.username}
+                    {u.mustChangePassword && (
+                      <span
+                        title="User wajib ganti password saat login berikutnya"
+                        className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium"
+                      >⚠</span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-[#6B7280]">
                   {u.email
                     ? <span className="text-[#111827]">{u.email}</span>
@@ -70,18 +100,30 @@ export default async function UsersPage() {
                 <td className="px-4 py-3 text-[#6B7280] whitespace-nowrap">{fmtDateTime(u.createdAt)}</td>
                 <td className="px-4 py-3 whitespace-nowrap">
                   {u.lastLoginAt
-                    ? (
-                      <span
-                        title={fmtDateTime(u.lastLoginAt)}
-                        className="text-[#111827] tabular-nums"
-                      >
-                        {fmtDateTime(u.lastLoginAt)}
-                      </span>
-                    )
+                    ? <span title={fmtDateTime(u.lastLoginAt)} className="text-[#111827] tabular-nums">{fmtDateTime(u.lastLoginAt)}</span>
                     : <span className="italic text-xs text-[#9CA3AF]">Belum pernah</span>
                   }
                 </td>
-                <td className="px-4 py-3"><UserActions user={u} globalLimit={globalLimit} /></td>
+                {/* Kolom audit trail password */}
+                <td className="px-4 py-3 whitespace-nowrap min-w-[160px]">
+                  {u.passwordChangedAt ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-[#111827] tabular-nums">{fmtDate(u.passwordChangedAt)}</p>
+                      {u.passwordChangedBy === 'admin' ? (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                          Admin{u.adminResetBy ? ` (${u.adminResetBy})` : ''}
+                        </span>
+                      ) : u.passwordChangedBy === 'user' ? (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">User</span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="italic text-xs text-[#9CA3AF]">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <UserActions user={u} globalLimit={globalLimit} />
+                </td>
               </tr>
             ))}
           </tbody>
