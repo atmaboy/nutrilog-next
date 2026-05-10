@@ -21,6 +21,12 @@ export const users = pgTable('users', {
   lastLoginAt:  timestamp('last_login_at', { withTimezone: true }),
   createdAt:    timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt:    timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+
+  // ── Password audit trail ──────────────────────────────────────────────────
+  passwordChangedAt:  timestamp('password_changed_at', { withTimezone: true }),
+  passwordChangedBy:  text('password_changed_by'),    // 'user' | 'admin'
+  mustChangePassword: boolean('must_change_password').default(false).notNull(),
+  adminResetBy:       text('admin_reset_by'),         // username admin yg reset
 }, t => ({ usernameIdx: index('idx_users_username').on(t.username) }))
 
 export const meals = pgTable('meals', {
