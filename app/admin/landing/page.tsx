@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 
 type ContentRow = {
   id: number
@@ -40,7 +39,6 @@ const emptyForm = (): Partial<ContentRow> & { metaRaw: string } => ({
 })
 
 export default function LandingEditorPage() {
-  const router = useRouter()
   const [rows, setRows]           = useState<ContentRow[]>([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
@@ -94,7 +92,6 @@ export default function LandingEditorPage() {
 
   async function handleSave() {
     if (!editRow) return
-    // Validate JSON
     let parsedMeta: Record<string, unknown> | null = null
     try {
       const raw = (editRow.metaRaw ?? '').trim()
@@ -240,7 +237,7 @@ export default function LandingEditorPage() {
         ) : displayed.length === 0 ? (
           <div className="p-10 text-center">
             <div className="text-3xl mb-3">📭</div>
-            <p className="text-[#6B7280] text-sm">Belum ada konten. Klik "+ Tambah Konten" untuk mulai.</p>
+            <p className="text-[#6B7280] text-sm">Belum ada konten. Klik &quot;+ Tambah Konten&quot; untuk mulai.</p>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -345,7 +342,9 @@ export default function LandingEditorPage() {
 
               {/* Slug */}
               <div>
-                <label className="block text-xs font-semibold text-[#374151] mb-1">Slug * <span className="font-normal text-[#9CA3AF]">(unik, URL-friendly, contoh: hero-main)</span></label>
+                <label className="block text-xs font-semibold text-[#374151] mb-1">
+                  Slug * <span className="font-normal text-[#9CA3AF]">(unik, URL-friendly, contoh: hero-main)</span>
+                </label>
                 <input
                   type="text"
                   value={editRow.slug ?? ''}
@@ -381,7 +380,9 @@ export default function LandingEditorPage() {
 
               {/* Body */}
               <div>
-                <label className="block text-xs font-semibold text-[#374151] mb-1">Body <span className="font-normal text-[#9CA3AF]">(untuk blog post / deskripsi panjang)</span></label>
+                <label className="block text-xs font-semibold text-[#374151] mb-1">
+                  Body <span className="font-normal text-[#9CA3AF]">(untuk blog post / deskripsi panjang)</span>
+                </label>
                 <textarea
                   rows={5}
                   value={editRow.body ?? ''}
