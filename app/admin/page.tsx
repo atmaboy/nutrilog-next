@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { users, meals, reports } from '@/drizzle/schema'
+import { users, meals, reports, landingContent } from '@/drizzle/schema'
 import { count, sum, desc, eq, sql } from 'drizzle-orm'
 import { getGlobalLimit, getCfg, getMaintenance } from '@/lib/admin'
 import { fmtNum, fmtDateTime, todayISO } from '@/lib/utils'
@@ -7,23 +7,24 @@ export const dynamic = 'force-dynamic'
 
 export default async function AdminDashboard() {
   const today = todayISO()
-  const [[totUsers],[totMeals],[todayMeals],[openReports],globalLimit,hasKey,maintenance] = await Promise.all([
+  const [[totUsers],[totMeals],[todayMeals],[openReports],[totLanding],globalLimit,hasKey,maintenance] = await Promise.all([
     db.select({ c: count() }).from(users),
     db.select({ c: count(), cal: sum(meals.totalCalories) }).from(meals),
     db.select({ c: count() }).from(meals).where(sql`DATE(logged_at) = ${today}`),
     db.select({ c: count() }).from(reports).where(eq(reports.status,'open')),
+    db.select({ c: count() }).from(landingContent),
     getGlobalLimit(),
     getCfg('anthropic_api_key').then(k => !!(process.env.ANTHROPIC_API_KEY || k)),
     getMaintenance(),
   ])
 
   const kpis = [
-    { label: 'Total User',         val: fmtNum(Number(totUsers.c)),               icon: '👥' },
-    { label: 'Total Meal Logs',    val: fmtNum(Number(totMeals.c)),               icon: '🍽️' },
-    { label: 'Meal Logs Hari Ini', val: fmtNum(Number(todayMeals.c)),             icon: '📅' },
-    { label: 'Total Kalori',       val: fmtNum(Number(totMeals.cal ?? 0))+' kcal',icon: '🔥' },
-    { label: 'Laporan Open',       val: fmtNum(Number(openReports.c)),            icon: '📣' },
-    { label: 'Limit Harian',       val: `${globalLimit} foto/hari`,               icon: '⚡' },
+    { label: 'Total User',         val: fmtNum(Number(totUsers.c)),                icon: '👥' },
+    { label: 'Total Meal Logs',    val: fmtNum(Number(totMeals.c)),                icon: '🍽️' },
+    { label: 'Meal Logs Hari Ini', val: fmtNum(Number(todayMeals.c)),              icon: '📅' },
+    { label: 'Total Kalori',       val: fmtNum(Number(totMeals.cal ?? 0))+' kcal', icon: '🔥' },
+    { label: 'Laporan Open',       val: fmtNum(Number(openReports.c)),             icon: '📣' },
+    { label: 'Konten Landing',     val: fmtNum(Number(totLanding.c))+' item',      icon: '📄' },
   ]
 
   const recentUsers = await db.select().from(users).orderBy(desc(users.createdAt)).limit(5)
@@ -37,14 +38,10 @@ export default async function AdminDashboard() {
         </div>
         <div className="flex items-center gap-3">
           {maintenance.enabled && (
-            <span className="text-xs bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-medium border border-orange-200">
-              ⚠️ Maintenance Aktif
-            </span>
+            <span className="text-xs bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-medium border border-orange-200">⚠️ Maintenance Aktif</span>
           )}
           {!hasKey && (
-            <span className="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-full font-medium border border-red-200">
-              ⚠️ API Key belum diset
-            </span>
+            <span className="text-xs bg-red-50 text-red-600 px-3 py-1 rounded-full font-medium border border-red-200">⚠️ API Key belum diset</span>
           )}
         </div>
       </div>
@@ -57,6 +54,24 @@ export default async function AdminDashboard() {
             <div className="text-2xl font-bold tabular-nums text-[#111827]">{k.val}</div>
             <div className="text-xs text-[#6B7280] mt-1">{k.label}</div>
           </div>
+        ))}
+      </div>
+
+      {/* Quick Links */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { href: '/admin/users',   icon: '👥', label: 'Kelola User' },
+          { href: '/admin/reports', icon: '📣', label: 'Laporan' },
+          { href: '/admin/landing', icon: '📄', label: 'Konten Landing' },
+          { href: '/admin/config',  icon: '⚙️', label: 'Konfigurasi' },
+        ].map(l => (
+          <a
+            key={l.href} href={l.href}
+            className="flex items-center gap-3 bg-white ring-1 ring-[#E5E7EB] rounded-xl p-4 hover:bg-[#F9FAFB] transition-colors shadow-[0_1px_4px_rgba(16,24,40,0.04)]"
+          >
+            <span className="text-xl">{l.icon}</span>
+            <span className="text-sm font-semibold text-[#374151]">{l.label}</span>
+          </a>
         ))}
       </div>
 
@@ -79,9 +94,7 @@ export default async function AdminDashboard() {
                 <td className="px-5 py-3 font-medium text-[#111827]">{u.username}</td>
                 <td className="px-5 py-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    u.isActive
-                      ? 'bg-[#D4F5E4] text-[#1F9D57]'
-                      : 'bg-[#F3F4F6] text-[#6B7280]'
+                    u.isActive ? 'bg-[#D4F5E4] text-[#1F9D57]' : 'bg-[#F3F4F6] text-[#6B7280]'
                   }`}>
                     {u.isActive ? 'Aktif' : 'Nonaktif'}
                   </span>

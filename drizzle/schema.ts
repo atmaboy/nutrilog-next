@@ -69,6 +69,24 @@ export const maintenanceConfig = pgTable('maintenance_config', {
   updatedAt:   timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
+// ── CMS: Landing Page & Blog Content ─────────────────────────────────────────
+export const landingContent = pgTable('landing_content', {
+  id:         serial('id').primaryKey(),
+  section:    text('section').notNull(),       // 'hero' | 'how_it_works' | 'features' | 'stats' | 'cta' | 'blog_post'
+  slug:       text('slug').unique().notNull(), // URL-friendly identifier
+  title:      text('title').notNull().default(''),
+  subtitle:   text('subtitle'),
+  body:       text('body'),                    // long-form content / blog body
+  meta:       jsonb('meta'),                   // icon, cta_label, cta_url, image_url, step, dsb
+  isActive:   boolean('is_active').notNull().default(true),
+  sortOrder:  integer('sort_order').notNull().default(0),
+  createdAt:  timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt:  timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, t => ({
+  sectionIdx: index('idx_landing_section').on(t.section),
+  activeIdx:  index('idx_landing_active').on(t.isActive, t.section, t.sortOrder),
+}))
+
 export const usersRelations = relations(users, ({ many }) => ({
   meals: many(meals), dailyUsage: many(dailyUsage), reports: many(reports),
 }))
@@ -82,7 +100,9 @@ export const reportsRelations = relations(reports, ({ one }) => ({
   user: one(users, { fields: [reports.userId], references: [users.id] }),
 }))
 
-export type User    = typeof users.$inferSelect
-export type NewUser = typeof users.$inferInsert
-export type Meal    = typeof meals.$inferSelect
-export type Report  = typeof reports.$inferSelect
+export type User            = typeof users.$inferSelect
+export type NewUser         = typeof users.$inferInsert
+export type Meal            = typeof meals.$inferSelect
+export type Report          = typeof reports.$inferSelect
+export type LandingContent  = typeof landingContent.$inferSelect
+export type NewLandingContent = typeof landingContent.$inferInsert
