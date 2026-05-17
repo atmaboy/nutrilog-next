@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 type LandingRow = {
   id: number
@@ -135,7 +136,6 @@ export default function LandingPage() {
   const router = useRouter()
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [content, setContent] = useState<LandingData>(DEFAULTS)
-  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('nl_token')
@@ -428,7 +428,7 @@ export default function LandingPage() {
 
         {/* ── NAVBAR ── */}
         <nav className="gk-nav">
-          <a className="gk-logo" href="/" aria-label="Gizku home">
+          <Link className="gk-logo" href="/" aria-label="Gizku home">
             <svg width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
               <circle cx="18" cy="18" r="18" fill="#2ECC71"/>
               <path d="M9 18 Q9 26 18 26 Q27 26 27 18" stroke="white" strokeWidth="2.2" strokeLinecap="round" fill="none"/>
@@ -436,7 +436,7 @@ export default function LandingPage() {
               <polyline points="13.5,12.5 17,16.5 23,10.5" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
             </svg>
             <span className="gk-logo-text">Gizku</span>
-          </a>
+          </Link>
           <div className="gk-nav-links">
             {isLoggedIn ? (
               <button className="gk-btn-primary" onClick={() => router.push('/main/catat')}>
